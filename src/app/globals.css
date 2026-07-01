@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Dark mode menggunakan class strategy */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --primary: #2563eb;
   --primary-dark: #1d4ed8;
@@ -11,6 +14,20 @@
   --text: #1e293b;
   --text-muted: #64748b;
   --border: #e2e8f0;
+}
+
+/* Dark mode overrides */
+.dark {
+  --background: #0f172a;
+  --card: #1e293b;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --border: #334155;
+}
+
+.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
 }
 
 * {
@@ -28,6 +45,9 @@ body {
   color: var(--text);
   margin: 0;
   padding: 0;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 /* Custom utility classes */

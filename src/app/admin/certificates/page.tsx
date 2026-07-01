@@ -1,281 +1,320 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 
-interface Student {
-  id: string;
-  fullName: string;
-  schoolOrigin: string | null;
-  unitId: string | null;
-}
-
-interface Certificate {
-  id: string;
-  userId: string;
-  title: string;
-  fileUrl: string | null;
-  issuanceDate: string | null;
-  generatedDate: string | null;
-  createdAt: string;
-}
-
-export default function AdminCertificatesPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [certificates, setCertificates] = useState<Certificate[]>([]);
+export default function CertificatesPage() {
+  const [seminars, setSeminars] = useState<any[]>([]);
+  const [selectedSeminarId, setSelectedSeminarId] = useState("");
+  const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sendingId, setSendingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState("");
-  const [title, setTitle] = useState("Sertifikat Praktik");
-  const [issuanceDate, setIssuanceDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
-  const [generating, setGenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState<"issue" | "list">("issue");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    loadData();
+    fetch("/api/seminars?active=false")
+      .then((r) => r.ok && r.json())
+      .then((d) => {
+        setSeminars(d || []);
+        setLoading(false);
+      });
   }, []);
 
-  const loadData = async () => {
+  const loadParticipants = async (seminarId: string) => {
+    setLoading(true);
+    setMessage("");
     try {
-      const [studentsRes, certificatesRes] = await Promise.all([
-        fetch("/api/students"),
-        fetch("/api/certificates"),
-      ]);
-      const studentsData = await studentsRes.json();
-      const certificatesData = await certificatesRes.json();
-      setStudents(Array.isArray(studentsData) ? studentsData : []);
-      setCertificates(Array.isArray(certificatesData) ? certificatesData : []);
-    } catch (error) {
-      console.error("Failed to load data:", error);
+      const res = await fetch(`/api/registrations?seminarId=${seminarId}`);
+      if (res.ok) setParticipants(await res.json());
+    } catch {
+      setMessage("Gagal memuat data peserta");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGenerateCertificate = async () => {
-    if (!selectedStudent) {
-      setMessage("Pilih mahasiswa terlebih dahulu");
-      return;
-    }
-
-    setGenerating(true);
+  const sendCertificateWa = async (registrationId: string) => {
+    setSendingId(registrationId);
     setMessage("");
-
     try {
-      const res = await fetch("/api/certificates", {
+      const res = await fetch("/api/certificates/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: selectedStudent,
-          title,
-          issuanceDate,
-        }),
+        body: JSON.stringify({ registrationId }),
       });
-
       const data = await res.json();
       if (res.ok) {
-        setMessage("Sertifikat berhasil dibuat");
-        loadData();
+        setMessage(data.message);
+        loadParticipants(selectedSeminarId);
       } else {
-        setMessage(data.error || "Gagal membuat sertifikat");
+        setMessage(`❌ ${data.error || "Gagal mengirim sertifikat"}`);
       }
     } catch {
-      setMessage("Terjadi kesalahan");
+      setMessage("❌ Gagal terhubung ke server");
     } finally {
-      setGenerating(false);
+      setSendingId(null);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full"></div>
-      </div>
+  const sendAllCertificates = async () => {
+    const presentParticipants = participants.filter(
+      (p) => p.isPresent && p.phoneNumber && !p.certificateSent,
     );
-  }
+    if (presentParticipants.length === 0) {
+      setMessage(
+        "Tidak ada peserta hadir dengan nomor WA yang belum mendapat sertifikat.",
+      );
+      return;
+    }
+
+    if (
+      !confirm(
+        `Kirim sertifikat ke ${presentParticipants.length} peserta via WhatsApp?`,
+      )
+    )
+      return;
+
+    let sent = 0;
+    let failed = 0;
+    for (const p of presentParticipants) {
+      setSendingId(p.id);
+      try {
+        const res = await fetch("/api/certificates/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ registrationId: p.id }),
+        });
+        if (res.ok) sent++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+    setSendingId(null);
+    setMessage(`${sent} sertifikat terkirim, ${failed} gagal.`);
+    loadParticipants(selectedSeminarId);
+  };
+
+  // Filter participants by search query
+  const filteredParticipants = participants.filter((p) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      p.fullName?.toLowerCase().includes(q) ||
+      p.phoneNumber?.toLowerCase().includes(q) ||
+      p.email?.toLowerCase().includes(q)
+    );
+  });
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/admin/dashboard"
-              className="text-blue-600 text-sm hover:underline"
-            >
-              &larr; Dashboard
-            </Link>
-            <h1 className="font-bold text-lg text-gray-800 ml-4">
-              Manajemen Sertifikat
-            </h1>
-          </div>
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Manajemen Sertifikat
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Kirim sertifikat peserta seminar via WhatsApp
+        </p>
+      </div>
+
+      {message && (
+        <div
+          className={`mb-6 px-5 py-4 rounded-xl text-sm ${
+            message.startsWith("❌")
+              ? "bg-red-50 border border-red-200 text-red-700"
+              : "bg-green-50 border border-green-200 text-green-700"
+          }`}
+        >
+          {message}
         </div>
-      </header>
+      )}
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setActiveTab("issue")}
-            className={`btn ${activeTab === "issue" ? "btn-primary" : "btn-outline"}`}
-          >
-            Terbitkan Sertifikat
-          </button>
-          <button
-            onClick={() => setActiveTab("list")}
-            className={`btn ${activeTab === "list" ? "btn-primary" : "btn-outline"}`}
-          >
-            Riwayat Sertifikat
-          </button>
+      <div className="mb-6">
+        <select
+          value={selectedSeminarId}
+          onChange={(e) => {
+            setSelectedSeminarId(e.target.value);
+            if (e.target.value) loadParticipants(e.target.value);
+          }}
+          className="w-full max-w-md px-4 py-3 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
+        >
+          <option value="">-- Pilih Seminar --</option>
+          {seminars.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.title} — {s.date}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
         </div>
-
-        {message && (
-          <div
-            className={`p-3 rounded-lg text-sm mb-4 ${
-              message.includes("berhasil")
-                ? "bg-green-50 text-green-700"
-                : "bg-red-50 text-red-700"
-            }`}
-          >
-            {message}
-          </div>
-        )}
-
-        {activeTab === "issue" && (
-          <div className="card max-w-lg">
-            <h2 className="font-semibold text-gray-900 mb-4">
-              Terbitkan Sertifikat Baru
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <label className="label">Mahasiswa *</label>
-                <select
-                  value={selectedStudent}
-                  onChange={(e) => setSelectedStudent(e.target.value)}
-                  className="input"
-                  required
-                >
-                  <option value="">Pilih Mahasiswa</option>
-                  {students.map((student) => (
-                    <option key={student.id} value={student.id}>
-                      {student.fullName}
-                      {student.schoolOrigin ? ` (${student.schoolOrigin})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">Judul Sertifikat</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="input"
-                  placeholder="Sertifikat Praktik"
-                />
-              </div>
-              <div>
-                <label className="label">Tanggal Penerbitan</label>
-                <input
-                  type="date"
-                  value={issuanceDate}
-                  onChange={(e) => setIssuanceDate(e.target.value)}
-                  className="input"
-                />
-              </div>
-              <button
-                onClick={handleGenerateCertificate}
-                disabled={generating}
-                className="btn btn-primary w-full"
-              >
-                {generating ? "Membuat Sertifikat..." : "Terbitkan Sertifikat"}
-              </button>
+      ) : !selectedSeminarId ? (
+        <div className="text-center py-12 text-slate-400">
+          Pilih seminar untuk melihat peserta
+        </div>
+      ) : (
+        <>
+          {/* Ringkasan */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="bg-white rounded-2xl p-5 shadow-lg shadow-slate-200/50">
+              <p className="text-3xl font-bold text-blue-700">
+                {participants.length}
+              </p>
+              <p className="text-sm text-slate-500">Total Peserta</p>
+            </div>
+            <div className="bg-white rounded-2xl p-5 shadow-lg shadow-slate-200/50">
+              <p className="text-3xl font-bold text-emerald-700">
+                {
+                  participants.filter((p) => p.isPresent && p.phoneNumber)
+                    .length
+                }
+              </p>
+              <p className="text-sm text-slate-500">Hadir & Punya WA</p>
+            </div>
+            <div className="bg-white rounded-2xl p-5 shadow-lg shadow-slate-200/50">
+              <p className="text-3xl font-bold text-green-700">
+                {participants.filter((p) => p.certificateSent).length}
+              </p>
+              <p className="text-sm text-slate-500">Sertifikat Terkirim</p>
             </div>
           </div>
-        )}
 
-        {activeTab === "list" && (
-          <div>
-            {certificates.length === 0 ? (
-              <div className="card text-center py-8">
-                <p className="text-gray-500">Belum ada sertifikat</p>
+          {participants.filter((p) => p.isPresent).length > 0 && (
+            <button
+              onClick={sendAllCertificates}
+              disabled={sendingId !== null}
+              className="mb-6 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg disabled:opacity-50 text-sm"
+            >
+              {sendingId !== null
+                ? "Mengirim..."
+                : `📤 Kirim Semua Sertifikat (${participants.filter((p) => p.isPresent && p.phoneNumber && !p.certificateSent).length} belum terkirim)`}
+            </button>
+          )}
+
+          {participants.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              Belum ada peserta terdaftar
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 overflow-hidden">
+              {/* Search Input */}
+              <div className="p-4 border-b border-slate-200">
+                <input
+                  type="text"
+                  placeholder="Cari peserta (nama, no. WA, email)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full md:w-96 px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                />
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="text-left p-3 text-sm font-semibold text-gray-700">
-                        Mahasiswa
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold text-gray-700">
-                        Judul
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold text-gray-700">
-                        Tanggal Terbit
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold text-gray-700">
-                        Status
-                      </th>
-                      <th className="text-left p-3 text-sm font-semibold text-gray-700">
-                        Aksi
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {certificates.map((cert) => {
-                      const student = students.find(
-                        (s) => s.id === cert.userId,
-                      );
-                      return (
-                        <tr key={cert.id} className="border-t border-gray-200">
-                          <td className="p-3 text-sm text-gray-900">
-                            {student?.fullName || "Unknown"}
-                          </td>
-                          <td className="p-3 text-sm text-gray-600">
-                            {cert.title}
-                          </td>
-                          <td className="p-3 text-sm text-gray-600">
-                            {cert.issuanceDate
-                              ? new Date(cert.issuanceDate).toLocaleDateString(
-                                  "id-ID",
-                                )
-                              : "-"}
-                          </td>
-                          <td className="p-3 text-sm">
-                            <span
-                              className={`badge ${
-                                cert.fileUrl ? "badge-success" : "badge-warning"
-                              }`}
-                            >
-                              {cert.fileUrl ? "Siap" : "Proses"}
-                            </span>
-                          </td>
-                          <td className="p-3 text-sm">
-                            {cert.fileUrl ? (
-                              <a
-                                href={cert.fileUrl}
-                                download
-                                className="btn btn-secondary text-xs"
-                              >
-                                Unduh PDF
-                              </a>
-                            ) : (
-                              <span className="text-gray-400">-</span>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-4 py-3 font-semibold text-slate-700">
+                      Nama
+                    </th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-700">
+                      No. WA
+                    </th>
+                    <th className="text-center px-4 py-3 font-semibold text-slate-700">
+                      Presensi
+                    </th>
+                    <th className="text-center px-4 py-3 font-semibold text-slate-700">
+                      Status
+                    </th>
+                    <th className="text-center px-4 py-3 font-semibold text-slate-700">
+                      Aksi
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredParticipants.map((p: any) => {
+                    const hasPhone = !!p.phoneNumber;
+                    const isPresent = !!p.isPresent;
+                    const isSent = !!p.certificateSent;
+
+                    return (
+                      <tr
+                        key={p.id}
+                        className="border-b border-slate-100 hover:bg-slate-50"
+                      >
+                        <td className="px-4 py-3 font-medium">{p.fullName}</td>
+                        <td className="px-4 py-3 text-slate-500">
+                          {p.phoneNumber || (
+                            <span className="text-red-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+                              isPresent
+                                ? "bg-green-100 text-green-700"
+                                : "bg-slate-100 text-slate-400"
+                            }`}
+                          >
+                            {isPresent ? "Hadir" : "Belum"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+                              isSent
+                                ? "bg-green-100 text-green-700"
+                                : "bg-slate-100 text-slate-400"
+                            }`}
+                          >
+                            {isSent
+                              ? "✓ Terkirim"
+                              : isPresent && hasPhone
+                                ? "Siap Kirim"
+                                : "-"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            {isPresent && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    window.open(
+                                      `/api/certificates/generate?registrationId=${p.id}&seminarId=${selectedSeminarId}&print=true`,
+                                      "_blank",
+                                    )
+                                  }
+                                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                                >
+                                  🖨️ Cetak
+                                </button>
+                                {hasPhone && !isSent && (
+                                  <button
+                                    onClick={() => sendCertificateWa(p.id)}
+                                    disabled={sendingId === p.id}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-40"
+                                  >
+                                    {sendingId === p.id
+                                      ? "Mengirim..."
+                                      : "📤 Kirim"}
+                                  </button>
+                                )}
+                              </>
                             )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
+                            {!isPresent && (
+                              <span className="text-xs text-slate-400">-</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

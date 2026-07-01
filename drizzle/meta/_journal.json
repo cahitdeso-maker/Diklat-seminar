@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1710000000000,
+      "tag": "0000_complete_marauders",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1710100000000,
+      "tag": "0001_convert_is_deleted_to_boolean",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1710200000000,
+      "tag": "0002_sync_schema_with_database",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1710300000000,
+      "tag": "0003_reset_is_completed_remove_auto",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1710400000000,
+      "tag": "0004_add_signature_and_cert_settings",
+      "breakpoints": true
+    }
+  ]
+}

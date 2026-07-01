@@ -3,25 +3,17 @@ export function generateId(): string {
 }
 
 export function getShift(): { name: string; label: string } {
-  const hour = new Date().getHours();
-  const minute = new Date().getMinutes();
-  const totalMinutes = hour * 60 + minute;
-
-  // Shift P (Pagi): dimulai jam 07:00
-  if (totalMinutes >= 7 * 60) {
-    return { name: "P", label: "Pagi" };
-  }
   return { name: "P", label: "Pagi" };
 }
 
-export function isLate(): boolean {
+export function isLate(checkInHour = 7, checkInMinute = 0): boolean {
   const now = new Date();
   const hour = now.getHours();
   const minute = now.getMinutes();
   const totalMinutes = hour * 60 + minute;
-  const sevenAM = 7 * 60;
+  const limit = checkInHour * 60 + checkInMinute;
 
-  return totalMinutes > sevenAM;
+  return totalMinutes > limit;
 }
 
 export function calculateDistance(
