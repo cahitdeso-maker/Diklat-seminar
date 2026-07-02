@@ -3,11 +3,11 @@ import mysql from "mysql2/promise";
 import * as schema from "./schema";
 
 const poolConnection = mysql.createPool({
-  host: "127.0.0.1",
-  port: 3307,
-  user: "root",
-  password: "Mahmudd",
-  database: "presensi_diklat",
+  host: "aws-1-ap-southeast-1.pooler.supabase.com",
+  port: 5432,
+  user: "postgres.bdzqkxscwgdbnneuhjjh",
+  password: "pkugombong21",
+  database: "postgres",
   waitForConnections: true,
   connectionLimit: 10,
 });
