@@ -70,13 +70,13 @@ export async function POST(request: Request) {
     }
 
     // Kirim sertifikat via WhatsApp
+    const seminarDate = String(seminar.date).split("T")[0];
+    
     const result = await sendCertificate(
       reg.phoneNumber,
       reg.fullName,
       seminar.title,
-      typeof seminar.date === "string"
-        ? seminar.date
-        : seminar.date.toISOString().split("T")[0],
+      seminarDate,
     );
 
     if (!result.success) {

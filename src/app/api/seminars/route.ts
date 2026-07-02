@@ -23,22 +23,19 @@ async function updateCompletedStatus() {
     .select()
     .from(seminars)
     .where(eq(seminars.isDeleted, false));
-  for (const sem of all) {
-    if (!sem.date || sem.isCompleted) continue;
-    const end = sem.endTime || "23:59";
-    // sem.date bisa berupa Date object (dari MySQL) atau string
-    const dateStr =
-      typeof sem.date === "string"
-        ? sem.date
-        : sem.date.toISOString().split("T")[0];
-    const seminarEnd = new Date(dateStr + "T" + end + ":00");
-    if (seminarEnd < now) {
-      await db
-        .update(seminars)
-        .set({ isCompleted: true })
-        .where(eq(seminars.id, sem.id));
+    for (const sem of all) {
+      if (!sem.date || sem.isCompleted) continue;
+      const end = sem.endTime || "23:59";
+      // sem.date is a string in YYYY-MM-DD format from PostgreSQL
+      const dateStr = String(sem.date);
+      const seminarEnd = new Date(dateStr + "T" + end + ":00");
+      if (seminarEnd < now) {
+        await db
+          .update(seminars)
+          .set({ isCompleted: true })
+          .where(eq(seminars.id, sem.id));
+      }
     }
-  }
 }
 
 // GET: Ambil semua seminar (yang aktif)
