@@ -12,4 +12,4 @@ const poolConnection = mysql.createPool({
   connectionLimit: 10,
 });
 
-export const db = drizzle(poolConnection, { schema, mode: "default" });
+export const db = drizzle(client, { schema });
