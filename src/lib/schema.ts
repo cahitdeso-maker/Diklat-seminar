@@ -1,39 +1,39 @@
 import {
-  mysqlTable,
+  pgTable,
   varchar,
   text,
-  int,
+  integer,
   boolean,
   timestamp,
-  float,
+  real,
   date,
-  datetime,
-} from "drizzle-orm/mysql-core";
+  uuid,
+} from "drizzle-orm/pg-core";
 
 // ================================
 // TABEL ADMIN / PANITIA DIKLAT
 // ================================
-export const users = mysqlTable("users", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
   role: varchar("role", { length: 20 }).notNull().default("admin"),
   fullName: varchar("full_name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }),
   password: varchar("password", { length: 255 }),
   phoneNumber: varchar("phone_number", { length: 30 }),
   schoolOrigin: varchar("school_origin", { length: 255 }),
-  age: int("age"),
+  age: integer("age"),
   address: text("address"),
-  unitId: varchar("unit_id", { length: 36 }),
+  unitId: uuid("unit_id"),
   faceData: text("face_data"),
   placeOfBirth: varchar("place_of_birth", { length: 255 }),
   dateOfBirth: varchar("date_of_birth", { length: 20 }),
   homeAddress: text("home_address"),
   institutionName: varchar("institution_name", { length: 255 }),
   studyProgram: varchar("study_program", { length: 255 }),
-  semester: int("semester"),
+  semester: integer("semester"),
   practiceStartDate: varchar("practice_start_date", { length: 20 }),
   practiceEndDate: varchar("practice_end_date", { length: 20 }),
-  practiceDurationWeeks: int("practice_duration_weeks"),
+  practiceDurationWeeks: integer("practice_duration_weeks"),
   stase: varchar("stase", { length: 100 }),
   staseLainnya: varchar("stase_lainnya", { length: 100 }),
   diplomaFile: text("diploma_file"),
@@ -45,15 +45,15 @@ export const users = mysqlTable("users", {
 // ================================
 // TABEL SEMINAR / EVENT
 // ================================
-export const seminars = mysqlTable("seminars", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+export const seminars = pgTable("seminars", {
+  id: uuid("id").primaryKey().defaultRandom(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   date: date("date").notNull(),
   startTime: varchar("start_time", { length: 10 }),
   endTime: varchar("end_time", { length: 10 }),
   location: varchar("location", { length: 255 }),
-  maxParticipants: int("max_participants").default(0),
+  maxParticipants: integer("max_participants").default(0),
   useQr: boolean("use_qr").notNull().default(true),
   useFace: boolean("use_face").notNull().default(true),
   isActive: boolean("is_active").notNull().default(true),
@@ -65,9 +65,9 @@ export const seminars = mysqlTable("seminars", {
 // ================================
 // TABEL PENDAFTARAN PESERTA
 // ================================
-export const registrations = mysqlTable("registrations", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  seminarId: varchar("seminar_id", { length: 36 })
+export const registrations = pgTable("registrations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  seminarId: uuid("seminar_id")
     .notNull()
     .references(() => seminars.id),
   fullName: varchar("full_name", { length: 255 }).notNull(),
@@ -78,7 +78,7 @@ export const registrations = mysqlTable("registrations", {
   faceData: text("face_data"),
   qrCode: varchar("qr_code", { length: 255 }),
   isPresent: boolean("is_present").notNull().default(false),
-  presentTime: datetime("present_time"),
+  presentTime: timestamp("present_time"),
   presentMethod: varchar("present_method", { length: 20 }),
   certificateSent: boolean("certificate_sent").notNull().default(false),
   isDeleted: boolean("is_deleted").notNull().default(false),
@@ -88,12 +88,12 @@ export const registrations = mysqlTable("registrations", {
 // ================================
 // SERTIFIKAT
 // ================================
-export const certificates = mysqlTable("certificates", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  registrationId: varchar("registration_id", { length: 36 })
+export const certificates = pgTable("certificates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  registrationId: uuid("registration_id")
     .notNull()
     .references(() => registrations.id),
-  seminarId: varchar("seminar_id", { length: 36 })
+  seminarId: uuid("seminar_id")
     .notNull()
     .references(() => seminars.id),
   fileUrl: varchar("file_url", { length: 500 }),
@@ -106,27 +106,27 @@ export const certificates = mysqlTable("certificates", {
 // ================================
 // PRESENSI / ATTENDANCE
 // ================================
-export const attendance = mysqlTable("attendance", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  registrationId: varchar("registration_id", { length: 36 })
+export const attendance = pgTable("attendance", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  registrationId: uuid("registration_id")
     .notNull()
     .references(() => registrations.id),
   method: varchar("method", { length: 20 }).notNull(), // face, qr, code
-  timestamp: datetime("timestamp").notNull().default(new Date()),
-  createdAt: timestamp("created_at").notNull().default(new Date()),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // ================================
 // PEMATERI / SPEAKER
 // ================================
-export const speakers = mysqlTable("speakers", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  seminarId: varchar("seminar_id", { length: 36 })
+export const speakers = pgTable("speakers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  seminarId: uuid("seminar_id")
     .notNull()
     .references(() => seminars.id),
   name: varchar("name", { length: 255 }).notNull(),
   topic: text("topic"),
-  displayOrder: int("display_order").notNull().default(1),
+  displayOrder: integer("display_order").notNull().default(1),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -134,8 +134,8 @@ export const speakers = mysqlTable("speakers", {
 // ================================
 // SETTINGS
 // ================================
-export const settings = mysqlTable("settings", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+export const settings = pgTable("settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
   settingKey: varchar("setting_key", { length: 100 }).notNull().unique(),
   settingValue: text("setting_value").notNull(),
   isDeleted: boolean("is_deleted").notNull().default(false),
@@ -145,8 +145,8 @@ export const settings = mysqlTable("settings", {
 // ================================
 // PENANDA TANGAN SERTIFIKAT
 // ================================
-export const signatureSettings = mysqlTable("signature_settings", {
-  id: varchar("id", { length: 36 }).primaryKey(),
+export const signatureSettings = pgTable("signature_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
   position: varchar("position", { length: 255 }).notNull(),
   nip: varchar("nip", { length: 30 }),
@@ -160,10 +160,10 @@ export const signatureSettings = mysqlTable("signature_settings", {
 // ================================
 // PENGATURAN NOMOR SURAT
 // ================================
-export const certificateNumberSettings = mysqlTable(
+export const certificateNumberSettings = pgTable(
   "certificate_number_settings",
   {
-    id: varchar("id", { length: 36 }).primaryKey(),
+    id: uuid("id").primaryKey().defaultRandom(),
     letterPrefix: varchar("letter_prefix", { length: 50 })
       .notNull()
       .default("NO : "),
@@ -171,7 +171,7 @@ export const certificateNumberSettings = mysqlTable(
     institutionCode: varchar("institution_code", { length: 100 })
       .notNull()
       .default("RSUD"),
-    currentNumber: int("current_number").notNull().default(1),
+    currentNumber: integer("current_number").notNull().default(1),
     year: varchar("year", { length: 4 }).notNull(),
     format: varchar("format", { length: 100 })
       .notNull()

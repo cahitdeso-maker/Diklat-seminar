@@ -3,12 +3,13 @@ import type { Config } from "drizzle-kit";
 export default {
   schema: "./src/lib/schema.ts",
   out: "./drizzle",
-  dialect: "mysql",
+  dialect: "postgresql",
   dbCredentials: {
-    host: "127.0.0.1",
-    port: 3307,
-    user: "root",
-    password: "Mahmudd",
-    database: "presensi_diklat",
+    host: "aws-1-ap-southeast-1.pooler.supabase.com",
+    port: 5432,
+    user: "postgres.bdzqkxscwgdbnneuhjjh",
+    password: "pkugombong21",
+    database: "postgres",
+    ssl: "require",
   },
 } satisfies Config;
