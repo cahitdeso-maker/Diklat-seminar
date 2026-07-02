@@ -104,6 +104,19 @@ export const certificates = mysqlTable("certificates", {
 });
 
 // ================================
+// PRESENSI / ATTENDANCE
+// ================================
+export const attendance = mysqlTable("attendance", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  registrationId: varchar("registration_id", { length: 36 })
+    .notNull()
+    .references(() => registrations.id),
+  method: varchar("method", { length: 20 }).notNull(), // face, qr, code
+  timestamp: datetime("timestamp").notNull().default(new Date()),
+  createdAt: timestamp("created_at").notNull().default(new Date()),
+});
+
+// ================================
 // PEMATERI / SPEAKER
 // ================================
 export const speakers = mysqlTable("speakers", {

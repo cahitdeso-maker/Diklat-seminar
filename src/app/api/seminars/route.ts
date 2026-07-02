@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { seminars } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { generateId } from "@/lib/utils";
 
 function getSessionUser(request: Request) {
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
       data = await db
         .select()
         .from(seminars)
-        .where(eq(seminars.isDeleted, false))
+        .where(and(eq(seminars.isDeleted, false), eq(seminars.isCompleted, false)))
         .orderBy(desc(seminars.date));
     } else {
       data = await db.select().from(seminars).orderBy(desc(seminars.date));

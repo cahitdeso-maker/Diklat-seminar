@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AuthGuard } from "@/components/AuthGuard";
 
 const menuItems = [
   {
@@ -204,7 +205,8 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen flex">
+    <AuthGuard>
+      <div className="min-h-screen flex">
       <aside
         className={`fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-900 border-r border-gray-200 transition-all duration-300 flex flex-col ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
@@ -284,5 +286,6 @@ export default function AdminLayout({
         <main className="flex-1 bg-gray-50">{children}</main>
       </div>
     </div>
+    </AuthGuard>
   );
 }
