@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import * as schema from "./schema";
 
 const poolConnection = mysql.createPool({
@@ -12,4 +12,4 @@ const poolConnection = mysql.createPool({
   connectionLimit: 10,
 });
 
-export const db = drizzle(poolConnection, { schema, mode: "default" });
+export const db = drizzle(client, { schema });
