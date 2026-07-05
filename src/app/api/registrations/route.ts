@@ -162,6 +162,12 @@ export async function POST(request: Request) {
       }
     }
 
+    // Parse faceEmbedding from JSON string if provided
+    let faceEmbeddingParsed: string | null = null;
+    if (body.faceEmbedding && Array.isArray(body.faceEmbedding)) {
+      faceEmbeddingParsed = JSON.stringify(body.faceEmbedding);
+    }
+
     await db.insert(registrations).values({
       id,
       seminarId,
@@ -171,6 +177,8 @@ export async function POST(request: Request) {
       institution: institution || null,
       profession: profession || null,
       faceData: faceFilePath,
+      faceEmbedding: faceEmbeddingParsed,
+      faceQuality: body.faceQuality || null,
       qrCode,
       isPresent: false,
       certificateSent: false,

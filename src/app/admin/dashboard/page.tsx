@@ -51,9 +51,13 @@ export default function AdminDashboard() {
         allRegistrations = allRegistrations.filter((r: any) => !r.isDeleted);
       }
 
-      // Filter registrations for active seminars that haven't started yet (startDate > now)
+      // Filter registrations for active seminars that haven't started yet (date > now)
       const now = new Date();
-      const upcomingActiveSeminars = activeSeminars.filter((s: any) => new Date(s.startDate) > now);
+      const upcomingActiveSeminars = activeSeminars.filter((s: any) => {
+        const endTime = s.endTime || "23:59";
+        const seminarEnd = new Date(s.date + "T" + endTime + ":00");
+        return seminarEnd > now;
+      });
       const upcomingActiveSeminarIds = upcomingActiveSeminars.map((s: any) => s.id);
       
       const upcomingRegistrations = allRegistrations.filter((r: any) => 
@@ -84,17 +88,30 @@ export default function AdminDashboard() {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("id-ID", {
+    if (!dateStr) return "-";
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("id-ID", {
       day: "numeric",
       month: "short",
       year: "numeric",
     });
   };
 
+  const formatTime = (timeStr: string | null) => {
+    if (!timeStr) return "";
+    // timeStr format is HH:mm or HH:mm:ss
+    const parts = timeStr.split(":");
+    return `${parts[0]}:${parts[1]}`;
+  };
+
   const getStatusBadge = (seminar: any) => {
     const now = new Date();
-    const start = new Date(seminar.startDate);
-    const end = new Date(seminar.endDate);
+    const seminarDate = seminar.date;
+    const startTime = seminar.startTime || "00:00";
+    const endTime = seminar.endTime || "23:59";
+
+    // Combine date + time strings into proper Date objects
+    const start = new Date(seminarDate + "T" + startTime + ":00");
+    const end = new Date(seminarDate + "T" + endTime + ":00");
     
     if (now < start) return { label: "Akan Datang", class: "bg-blue-100 text-blue-700" };
     if (now > end) return { label: "Selesai", class: "bg-gray-100 text-gray-700" };
@@ -204,7 +221,7 @@ export default function AdminDashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"> 
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-xl text-sm flex items-center gap-2">
             <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -274,101 +291,162 @@ export default function AdminDashboard() {
 
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Recent Seminars */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
-              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-800">Seminar Terbaru</h3>
-                    <p className="text-xs text-slate-500">{recentSeminars.length} seminar terakhir</p>
-                  </div>
-                </div>
-                <Link
-                  href="/admin/seminars"
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                >
-                  Lihat Semua
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        {/* Seminar Terbaru */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200/40">
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
-                </Link>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Seminar Terbaru</h3>
+                  <p className="text-xs text-slate-400">
+                    {recentSeminars.filter(s => getStatusBadge(s).label === "Sedang Berlangsung").length > 0 
+                      ? `${recentSeminars.filter(s => getStatusBadge(s).label === "Sedang Berlangsung").length} seminar sedang berlangsung`
+                      : `${recentSeminars.length} seminar terbaru`}
+                  </p>
+                </div>
               </div>
+              <Link
+                href="/admin/seminars"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-sm font-semibold hover:bg-blue-100 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Semua Seminar
+              </Link>
+            </div>
 
-              <div className="divide-y divide-slate-100">
-                {recentSeminars.length > 0 ? (
-                  recentSeminars.map((seminar: any) => {
-                    const status = getStatusBadge(seminar);
-                    return (
+            {/* Content */}
+            <div className="divide-y divide-slate-50">
+              {recentSeminars.length > 0 ? (
+                recentSeminars.map((seminar, idx) => {
+                  const status = getStatusBadge(seminar);
+                  const isOngoing = status.label === "Sedang Berlangsung";
+                  
+                  return (
+                    <div key={seminar.id} className="relative">
+                      {isOngoing && (
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-green-400 to-emerald-500" />
+                      )}
                       <Link
-                        key={seminar.id}
-                        href={`/admin/seminars/${seminar.id}`}
-                        className="p-5 hover:bg-slate-50 transition-colors flex items-center justify-between group"
+                        href={`/admin/seminars`}
+                        className={`flex items-center gap-4 px-6 py-4 transition-all duration-200 group ${
+                          isOngoing 
+                            ? "bg-gradient-to-r from-green-50/80 via-white to-white hover:from-green-50 hover:to-green-50/50" 
+                            : "hover:bg-slate-50"
+                        }`}
                       >
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-medium text-slate-800 truncate">{seminar.title}</h4>
-                            <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
-                              <span className="flex items-center gap-1">
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                {formatDate(seminar.startDate)} - {formatDate(seminar.endDate)}
+                        {/* Number/Icon */}
+                        <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm transition-all ${
+                          isOngoing
+                            ? "bg-green-100 text-green-700 shadow-sm"
+                            : "bg-slate-100 text-slate-400 group-hover:bg-white group-hover:shadow-sm"
+                        }`}>
+                          {isOngoing ? (
+                            <span className="relative flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                            </span>
+                          ) : (
+                            idx + 1
+                          )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className={`font-semibold truncate ${
+                              isOngoing ? "text-green-900" : "text-slate-800"
+                            }`}>
+                              {seminar.title}
+                            </p>
+                            {isOngoing && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-wider animate-pulse">
+                                Live
                               </span>
-                              <span className="flex items-center gap-1">
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-0.5">
+                            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span>{formatDate(seminar.date)}</span>
+                            </div>
+                            {(seminar.startTime || seminar.endTime) && (
+                              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>{formatTime(seminar.startTime)} - {formatTime(seminar.endTime)}</span>
+                              </div>
+                            )}
+                            {seminar.location && (
+                              <div className="flex items-center gap-1.5 text-xs text-slate-400">
                                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                {seminar.location}
-                              </span>
-                            </div>
+                                <span className="truncate max-w-[150px]">{seminar.location}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 ml-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${status.class}`}>
+
+                        {/* Status & Arrow */}
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${
+                            isOngoing 
+                              ? "bg-green-100 text-green-700 ring-1 ring-green-300" 
+                              : status.label === "Akan Datang"
+                              ? "bg-blue-50 text-blue-600 ring-1 ring-blue-200"
+                              : "bg-slate-100 text-slate-500 ring-1 ring-slate-200"
+                          }`}>
                             {status.label}
                           </span>
-                          <svg className="w-5 h-5 text-slate-300 group-hover:text-slate-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
+                          <div className={`p-1.5 rounded-lg transition-all ${
+                            isOngoing 
+                              ? "text-green-500 group-hover:bg-green-100" 
+                              : "text-slate-300 group-hover:bg-slate-200 group-hover:text-blue-600"
+                          }`}>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
                         </div>
                       </Link>
-                    );
-                  })
-                ) : (
-                  <div className="p-12 text-center">
-                    <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
                     </div>
-                    <h4 className="text-slate-600 font-medium">Belum ada seminar</h4>
-                    <p className="text-slate-400 text-sm mt-1">Mulai buat seminar pertama Anda</p>
-                    <Link
-                      href="/admin/seminars"
-                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Buat Seminar
-                    </Link>
+                  );
+                })
+              ) : (
+                <div className="p-12 text-center">
+                  <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <svg className="w-10 h-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
                   </div>
-                )}
-              </div>
+                  <h4 className="text-lg font-semibold text-slate-600 mb-1">Belum Ada Seminar</h4>
+                  <p className="text-sm text-slate-400 mb-5">Mulai buat seminar pertama Anda untuk melihatnya di sini</p>
+                  <Link
+                    href="/admin/seminars"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-200/40"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Buat Seminar Baru
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
+        </div>
 
           {/* Quick Actions */}
           <div className="space-y-6">
@@ -402,50 +480,13 @@ export default function AdminDashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </Link>
-
-                <Link
-                  href="/admin/participants"
-                  className="flex items-center gap-4 p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl hover:from-emerald-100 hover:to-green-100 transition-all group"
-                >
-                  <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-                    <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-slate-800">Kelola Peserta</p>
-                    <p className="text-xs text-slate-500">Lihat & edit daftar peserta</p>
-                  </div>
-                  <svg className="w-5 h-5 text-slate-300 group-hover:text-emerald-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-
-                <Link
-                  href="/presensi"
-                  className="flex items-center gap-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl hover:from-purple-100 hover:to-pink-100 transition-all group"
-                >
-                  <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-                    <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-slate-800">Presensi QR Code</p>
-                    <p className="text-xs text-slate-500">Scan QR untuk kehadiran</p>
-                  </div>
-                  <svg className="w-5 h-5 text-slate-300 group-hover:text-purple-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-
                 <Link
                   href="/admin/reports"
                   className="flex items-center gap-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl hover:from-amber-100 hover:to-orange-100 transition-all group"
                 >
                   <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
                     <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
                   <div className="flex-1">
@@ -453,6 +494,23 @@ export default function AdminDashboard() {
                     <p className="text-xs text-slate-500">Download laporan kehadiran</p>
                   </div>
                   <svg className="w-5 h-5 text-slate-300 group-hover:text-amber-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+                <Link
+                  href="/register"
+                  className="flex items-center gap-4 p-4 bg-gradient-to-r from-rose-50 to-pink-50 rounded-xl hover:from-rose-100 hover:to-pink-100 transition-all group"
+                >
+                  <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+                    <svg className="w-5 h-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-slate-800">Daftar Peserta Baru</p>
+                    <p className="text-xs text-slate-500">Tambah peserta seminar</p>
+                  </div>
+                  <svg className="w-5 h-5 text-slate-300 group-hover:text-rose-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </Link>

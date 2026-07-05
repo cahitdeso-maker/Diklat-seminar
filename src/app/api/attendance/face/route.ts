@@ -2,27 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { registrations, attendance } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
 import { v4 as uuidv4 } from "uuid";
 
+// Public endpoint - NO AUTH REQUIRED
+// Used by the public presensi page for face recognition attendance
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession(req);
-    if (!session || (session.role !== "admin" && session.role !== "attendance_officer")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { image } = await req.json();
+    const { image, seminarId } = await req.json();
 
     if (!image) {
       return NextResponse.json({ error: "Gambar wajib diisi" }, { status: 400 });
     }
 
     // Get all registrations that have face data and haven't checked in
+    const conditions = [eq(registrations.isPresent, false)];
+    if (seminarId) {
+      conditions.push(eq(registrations.seminarId, seminarId));
+    }
     const regs = await db
       .select()
       .from(registrations)
-      .where(eq(registrations.isPresent, false));
+      .where(and(...conditions));
 
     if (regs.length === 0) {
       return NextResponse.json({ error: "Tidak ada peserta yang belum hadir" }, { status: 404 });
@@ -30,12 +30,6 @@ export async function POST(req: NextRequest) {
 
     // In a real implementation, you would use a face recognition service
     // For now, we'll simulate by finding a participant who hasn't checked in yet
-    // and using a simple matching algorithm or external service
-    
-    // This is a placeholder - in production you would:
-    // 1. Send the image to a face recognition service (AWS Rekognition, Azure Face API, etc.)
-    // 2. Compare against registered face embeddings
-    // 3. Return the matched participant
     
     // For demo purposes, we'll find the first participant who hasn't checked in
     const notPresent = regs.find((r) => !r.isPresent);

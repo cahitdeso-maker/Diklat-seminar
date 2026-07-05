@@ -349,9 +349,27 @@ export default function AdminSeminars() {
         }
       }
 
-      setEditingId(null);
-      resetForm();
-      loadSeminars();
+      if (!isEdit) {
+        // Create mode: close form, switch to active tab, reload, scroll to list
+        setShowForm(false);
+        setEditingId(null);
+        resetForm();
+        setActiveTab("active");
+        await loadSeminars();
+        // Scroll to the seminar list area
+        setTimeout(() => {
+          const listEl = document.getElementById("seminar-list");
+          if (listEl) listEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+        // Show success notification
+        setError("✓ Seminar berhasil dibuat");
+        setTimeout(() => setError(""), 3000);
+      } else {
+        // Edit mode: keep existing behavior
+        setEditingId(null);
+        resetForm();
+        loadSeminars();
+      }
     } catch {
       setError("Gagal menyimpan");
     }
@@ -408,7 +426,11 @@ export default function AdminSeminars() {
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm mb-4">
+        <div className={`p-3 rounded-xl text-sm mb-4 ${
+          error.startsWith("✓") 
+            ? "bg-green-50 text-green-700 border border-green-200" 
+            : "bg-red-50 text-red-600"
+        }`}>
           {error}
         </div>
       )}
@@ -651,7 +673,7 @@ export default function AdminSeminars() {
             : "Belum ada riwayat seminar"}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div id="seminar-list" className="space-y-3">
           {/* Search Input */}
           <div className="mb-4">
             <input

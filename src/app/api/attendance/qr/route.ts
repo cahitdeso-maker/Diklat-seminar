@@ -2,16 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { registrations, attendance } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
-import { getSession } from "@/lib/auth";
 import { v4 as uuidv4 } from "uuid";
 
+// Public endpoint - NO AUTH REQUIRED
+// Used by the public presensi page for QR code attendance
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession(req);
-    if (!session || (session.role !== "admin" && session.role !== "attendance_officer")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { seminarId, qrCode } = await req.json();
 
     if (!seminarId || !qrCode) {

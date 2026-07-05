@@ -1,54 +1,23 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 export default function AttendanceLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [session, setSession] = useState<{ role: string; name: string } | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-    // Check session from cookie
-    const cookie = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("session="));
-    if (cookie) {
-      try {
-        const value = decodeURIComponent(cookie.split("=")[1]);
-        const data = JSON.parse(Buffer.from(value, "base64").toString());
-        setSession(data);
-      } catch {
-        // Invalid session
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (mounted && !session) {
-      router.push("/attendance/login");
-    }
-  }, [mounted, session, router]);
-
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin w-10 h-10 border-4 border-green-600 border-t-transparent rounded-full"></div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return null;
-  }
+  // No session check - this is a public page
+  // Login page handles its own authentication separately
 
   const navItems = [
     { href: "/attendance", label: "Dashboard", icon: HomeIcon },
-    { href: "/attendance/history", label: "Riwayat", icon: HistoryIcon },
   ];
+
+  // Don't show header on login page
+  if (pathname === "/attendance/login") {
+    return <>{children}</>;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -82,23 +51,12 @@ export default function AttendanceLayout({ children }: { children: ReactNode }) 
               ))}
             </nav>
             <div className="flex items-center gap-4">
-              <span className="hidden sm:block text-sm text-slate-600">
-                {session.name}
-              </span>
-              <span
-                className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700"
-              >
-                {session.role === "admin" ? "Admin" : "Petugas"}
-              </span>
-              <button
-                onClick={() => {
-                  document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                  router.push("/attendance/login");
-                }}
+              <Link
+                href="/attendance/login"
                 className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                Keluar
-              </button>
+                Login
+              </Link>
             </div>
           </div>
         </div>
