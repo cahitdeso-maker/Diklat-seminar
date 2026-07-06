@@ -41,7 +41,6 @@ export default function AdminLogin() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-2xl shadow-slate-200/50 p-8 sm:p-10">
           <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200/50">
             <div className="flex justify-center mb-6">
               <Image
                 src="/img/logo.png"
@@ -52,7 +51,7 @@ export default function AdminLogin() {
                 priority
               />
             </div>
-            </div>
+            
             <h2 className="text-2xl font-bold text-slate-800">Selamat Datang</h2>
             <p className="text-sm text-slate-500 mt-2">
               Diklat RS PKU Muhammadiyah Gombong
