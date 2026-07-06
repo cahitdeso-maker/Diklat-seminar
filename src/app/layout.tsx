@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Seminar - Diklat RS",
   description:
-    "Sistem Presensi & Manajemen Praktik Mahasiswa Bagian Pendidikan dan Pelatihan Rumah Sakit",
+    "Sistem Presensi & Manajemen Seminar Bagian Pendidikan dan Pelatihan Rumah Sakit",
 };
 
 export default function RootLayout({
