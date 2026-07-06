@@ -67,7 +67,7 @@ export default function AdminDashboard() {
       setStats({
         seminars: allSeminars.length, // Total Seminar = ALL seminars (active + completed)
         activeSeminars: activeSeminars.length, // Active seminars only
-        participants: upcomingRegistrations.length, // Participants from active seminars not yet started
+        participants: allRegistrations.length, // Total semua peserta terdaftar
         present: allRegistrations.filter((r: any) => r.isPresent).length, // Hadir from ALL seminars
         absent: allRegistrations.filter((r: any) => !r.isPresent).length, // Belum Hadir from ALL seminars
       });

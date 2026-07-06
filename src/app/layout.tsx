@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Presensi Medis Pintar - Bagian Diklat RS",
+  title: "Seminar - Diklat RS",
   description:
     "Sistem Presensi & Manajemen Praktik Mahasiswa Bagian Pendidikan dan Pelatihan Rumah Sakit",
 };

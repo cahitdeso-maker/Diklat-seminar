@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 
 type SidebarHeaderProps = {
   collapsed: boolean;
@@ -16,8 +17,12 @@ export default function SidebarHeader({ collapsed, onToggleCollapse }: SidebarHe
     >
       {!collapsed && (
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0">
-            RS
+          <div className="flex items-center gap-3 min-w-0">
+          <img
+            src="/img/logo.png"
+            alt="Logo RS PKU Muhammadiyah Gombong"
+            className="w-10 h-10 object-contain flex-shrink-0"
+          />
           </div>
           <div className="truncate">
             <h2 className="font-bold text-sm text-gray-800 truncate">Diklat RS</h2>
