@@ -54,7 +54,7 @@ export default function AdminDashboard() {
       // Filter registrations for active seminars that haven't started yet (date > now)
       const now = new Date();
       const upcomingActiveSeminars = activeSeminars.filter((s: any) => {
-        const endTime = s.endTime || "23:59";
+        const endTime = s.endTime;
         const seminarEnd = new Date(s.date + "T" + endTime + ":00");
         return seminarEnd > now;
       });
@@ -106,8 +106,8 @@ export default function AdminDashboard() {
   const getStatusBadge = (seminar: any) => {
     const now = new Date();
     const seminarDate = seminar.date;
-    const startTime = seminar.startTime || "00:00";
-    const endTime = seminar.endTime || "23:59";
+    const startTime = seminar.startTime;
+    const endTime = seminar.endTime;
 
     // Combine date + time strings into proper Date objects
     const start = new Date(seminarDate + "T" + startTime + ":00");
@@ -191,15 +191,17 @@ export default function AdminDashboard() {
       <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200/50">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4">
+                <img
+                  src="/img/logo.png"
+                  alt="Logo"
+                  className="w-7 h-7 object-contain"
+                  />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-800">Dashboard Admin</h1>
-                <p className="text-xs text-slate-500">Bagian Diklat RS PKU Muhammadiyah Gombong</p>
+                <p className="text-xs text-slate-500">Diklat RS PKU Muhammadiyah Gombong</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -241,8 +243,8 @@ export default function AdminDashboard() {
             <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <p className="text-blue-100 text-sm font-medium uppercase tracking-wider mb-1">Selamat Datang Kembali</p>
-                <h2 className="text-2xl sm:text-3xl font-bold">Admin Diklat RS</h2>
-                <p className="text-blue-100/80 mt-2 max-w-md">Kelola seminar, peserta, dan presensi dengan mudah dan efisien</p>
+                <h2 className="text-2xl sm:text-3xl font-bold">Admin Diklat RS PKU Muhammadiyah Gombong</h2>
+                {/* <p className="text-blue-100/80 mt-2 max-w-md">Kelola seminar, peserta, dan presensi dengan mudah dan efisien</p> */}
               </div>
               <div className="flex items-center gap-4 pt-4 sm:pt-0 border-t border-white/10 sm:border-t-0 sm:border-l sm:pl-6">
                 <div className="text-center">
@@ -432,7 +434,7 @@ export default function AdminDashboard() {
                     </svg>
                   </div>
                   <h4 className="text-lg font-semibold text-slate-600 mb-1">Belum Ada Seminar</h4>
-                  <p className="text-sm text-slate-400 mb-5">Mulai buat seminar pertama Anda untuk melihatnya di sini</p>
+                  {/* <p className="text-sm text-slate-400 mb-5">Mulai buat seminar pertama Anda untuk melihatnya di sini</p> */}
                   <Link
                     href="/admin/seminars"
                     className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-200/40"
@@ -459,22 +461,22 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-800">Aksi Cepat</h3>
-                  <p className="text-xs text-slate-500">Menu utama yang sering digunakan</p>
+                  {/* <p className="text-xs text-slate-500">Menu utama yang sering digunakan</p> */}
                 </div>
               </div>
               <div className="space-y-3">
                 <Link
-                  href="/admin/seminars"
+                  href="/admin/participants"
                   className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl hover:from-blue-100 hover:to-indigo-100 transition-all group"
                 >
                   <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
                     <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-slate-800">Buat Seminar Baru</p>
-                    <p className="text-xs text-slate-500">Tambah seminar & jadwal</p>
+                    <p className="font-medium text-slate-800">Peserta</p>
+                    <p className="text-xs text-slate-500">Lihat & kelola peserta</p>
                   </div>
                   <svg className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

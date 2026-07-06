@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -36,28 +37,25 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-2xl shadow-slate-200/50 p-8 sm:p-10">
           <div className="text-center mb-8">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200/50">
-              <svg
-                className="w-7 h-7 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200/50">
+            <div className="flex justify-center mb-6">
+              <Image
+                src="/img/logo.png"
+                alt="Logo"
+                width={52}
+                height={52}
+                className="object-contain"
+                priority
+              />
+            </div>
             </div>
             <h2 className="text-2xl font-bold text-slate-800">Selamat Datang</h2>
             <p className="text-sm text-slate-500 mt-2">
-              Bagian Diklat RS PKU Muhammadiyah Gombong
+              Diklat RS PKU Muhammadiyah Gombong
             </p>
           </div>
 
@@ -84,7 +82,7 @@ export default function AdminLogin() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-4 py-3.5 pl-12 border border-slate-300 rounded-xl text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all bg-slate-50 hover:bg-white"
-                  placeholder="admin@diklat.rs"
+                  placeholder="email"
                   required
                   autoComplete="email"
                 />
@@ -103,7 +101,7 @@ export default function AdminLogin() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3.5 pl-12 pr-12 border border-slate-300 rounded-xl text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all bg-slate-50 hover:bg-white"
-                  placeholder="••••••••"
+                  placeholder="password"
                   required
                   autoComplete="current-password"
                 />
@@ -133,9 +131,9 @@ export default function AdminLogin() {
                 />
                 <span className="text-sm text-slate-600">Ingat saya</span>
               </label>
-              <a href="#" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              {/* <a href="#" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
                 Lupa Password?
-              </a>
+              </a> */}
             </div>
             <button
               type="submit"
