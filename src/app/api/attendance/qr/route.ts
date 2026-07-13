@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { registrations, attendance } from "@/lib/schema";
+import { registrations, attendance, certificates, seminars } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import { generateCertificateNumber } from "@/lib/certificate-number";
 
 // Public endpoint - NO AUTH REQUIRED
 // Used by the public presensi page for QR code attendance
@@ -31,6 +32,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Peserta sudah melakukan presensi" }, { status: 400 });
     }
 
+    // Generate certificate number (auto-generate saat presensi)
+    let certResult = null;
+    try {
+      certResult = await generateCertificateNumber(registration.id, registration.seminarId);
+    } catch (certErr) {
+      console.warn("Certificate number generation skipped:", certErr);
+    }
+
     // Mark as present
     await db
       .update(registrations)
@@ -40,6 +49,26 @@ export async function POST(req: NextRequest) {
         presentMethod: "qr",
       })
       .where(eq(registrations.id, registration.id));
+
+    // Ambil data seminar untuk title
+    const [seminarData] = await db
+      .select({ title: seminars.title })
+      .from(seminars)
+      .where(eq(seminars.id, registration.seminarId))
+      .limit(1);
+
+    // Simpan record ke tabel certificates jika nomor berhasil digenerate
+    if (certResult) {
+      await db.insert(certificates).values({
+        id: uuidv4(),
+        userId: registration.id,
+        title: seminarData?.title || "Sertifikat Seminar",
+        certificateNumber: certResult.code,
+        fileUrl: null,
+        generatedDate: new Date(),
+        isDeleted: false,
+      });
+    }
 
     // Also create attendance record
     await db.insert(attendance).values({

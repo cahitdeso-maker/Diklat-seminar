@@ -4,49 +4,91 @@ import { useState, useEffect } from "react";
 
 interface Settings {
   id: string;
-  letterNo: string;
   letterPrefix: string;
   institutionCode: string;
-  currentNumber: number;
+  letterType: string;
+  unitCode: string;
+  classification: string;
+  nextCertificateNumber: number;
+  lastCertificateNumber: number;
   year: string;
   format: string;
+  participantName: string;
+  resetOption: "per_seminar" | "per_tahun" | "never";
 }
 
-interface User {
+interface Seminar {
+  id: string;
+  title: string;
+  date: string;
+}
+
+interface Participant {
   id: string;
   fullName: string;
-  email: string;
-  role: string;
-  institutionName: string | null;
-  isActive: boolean;
-  createdAt: string;
+  phoneNumber: string | null;
+  email: string | null;
+  institution: string | null;
+  profession: string | null;
+  presentTime: string | null;
+  certificateSent: boolean;
+  certificateCode: string | null;
+  certificateNumber: number | null;
+}
+
+const MONTHS_ROMAN = [
+  "I", "II", "III", "IV", "V", "VI",
+  "VII", "VIII", "IX", "X", "XI", "XII",
+];
+
+function getCombinedCode(settings: Settings): string {
+  return `${settings.letterType || "KET"}/${settings.unitCode || "IV.6.AU"}/${settings.classification || "A"}`;
+}
+
+function generateCode(settings: Settings, num: number): string {
+  const monthRoman = MONTHS_ROMAN[new Date().getMonth()];
+  const combinedCode = getCombinedCode(settings);
+  const format = "{nomor}/{kode}/{bulan}/{tahun}";
+  let code = format
+    .replace("{nomor}", String(num).padStart(2, "0"))
+    .replace("{kode}", combinedCode)
+    .replace("{bulan}", monthRoman)
+    .replace("{tahun}", settings.year);
+  return `NO : ${code}`;
 }
 
 export default function CertificateSettingsPage() {
   const [settings, setSettings] = useState<Settings | null>({
     letterPrefix: "NO : ",
+    participantName: "",
+    format: "{nomor} {kode}/{bulan}/{tahun}",
+    institutionCode: "KET/IV.6.AU/A",
+    letterType: "KET",
+    unitCode: "IV.6.AU",
+    classification: "A",
+    nextCertificateNumber: 1,
+    lastCertificateNumber: 0,
+    year: String(new Date().getFullYear()),
+    resetOption: "per_tahun" as const,
   } as Settings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  // User management state
-  const [users, setUsers] = useState<User[]>([]);
-  const [usersLoading, setUsersLoading] = useState(true);
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [userForm, setUserForm] = useState({
-    fullName: "",
-    email: "",
-    password: "",
-    role: "mahasiswa",
-    institutionName: "",
-    isActive: true,
-  });
-  const [userSaving, setUserSaving] = useState(false);
-  const [userMessage, setUserMessage] = useState("");
-  const [userSearch, setUserSearch] = useState("");
-  const [userRoleFilter, setUserRoleFilter] = useState("");
+  // Edit modal state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
+  const [editNumber, setEditNumber] = useState(1);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  // Seminar & participants
+  const [seminars, setSeminars] = useState<Seminar[]>([]);
+  const [selectedSeminarId, setSelectedSeminarId] = useState("");
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
+
+  const currentMonthRoman = MONTHS_ROMAN[new Date().getMonth()];
 
   useEffect(() => {
     fetch("/api/certificate-settings")
@@ -54,6 +96,13 @@ export default function CertificateSettingsPage() {
       .then((d) => {
         if (d) {
           d.letterPrefix = d.letterPrefix || "NO : ";
+          d.participantName = d.participantName || "";
+          d.nextCertificateNumber = d.nextCertificateNumber ?? 1;
+          d.lastCertificateNumber = d.lastCertificateNumber ?? 0;
+          d.resetOption = d.resetOption || "per_tahun";
+          d.letterType = d.letterType || "KET";
+          d.unitCode = d.unitCode || "IV.6.AU";
+          d.classification = d.classification || "A";
           setSettings(d);
         }
         setLoading(false);
@@ -64,6 +113,54 @@ export default function CertificateSettingsPage() {
       });
   }, []);
 
+  // Helper untuk refresh settings dari server
+  const refreshSettings = async () => {
+    try {
+      const res = await fetch("/api/certificate-settings");
+      if (res.ok) {
+        const d = await res.json();
+        if (d) {
+          d.letterPrefix = d.letterPrefix || "NO : ";
+          d.participantName = d.participantName || "";
+          d.nextCertificateNumber = d.nextCertificateNumber ?? 1;
+          d.lastCertificateNumber = d.lastCertificateNumber ?? 0;
+          d.resetOption = d.resetOption || "per_tahun";
+          d.letterType = d.letterType || "KET";
+          d.unitCode = d.unitCode || "IV.6.AU";
+          d.classification = d.classification || "A";
+          setSettings(d);
+        }
+      }
+    } catch {
+      // silent
+    }
+  };
+
+  // Load seminars for dropdown
+  useEffect(() => {
+    fetch("/api/seminars?active=false")
+      .then((r) => r.ok && r.json())
+      .then((d) => setSeminars(d || []));
+  }, []);
+
+  const loadAttendedParticipants = async (seminarId: string) => {
+    setLoadingParticipants(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/attended-participants?seminarId=${seminarId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setParticipants(data.participants || []);
+      } else {
+        setMessage("Gagal memuat data peserta hadir");
+      }
+    } catch {
+      setMessage("❌ Gagal terhubung ke server");
+    } finally {
+      setLoadingParticipants(false);
+    }
+  };
+
   const update = async () => {
     if (!settings) return;
     setSaving(true);
@@ -72,11 +169,24 @@ export default function CertificateSettingsPage() {
       const res = await fetch("/api/certificate-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({
+          letterType: settings.letterType,
+          unitCode: settings.unitCode,
+          classification: settings.classification,
+          format: "{nomor} {kode}/{bulan}/{tahun}",
+          year: settings.year,
+          nextCertificateNumber: settings.nextCertificateNumber,
+          resetOption: settings.resetOption,
+        }),
       });
       if (res.ok) {
-        setSettings(await res.json());
-        setMessage("Pengaturan berhasil disimpan");
+        const updatedSettings = await res.json();
+        setSettings(updatedSettings);
+        setMessage("✅ Pengaturan berhasil disimpan");
+        // Refresh data peserta jika seminar sedang dipilih
+        if (selectedSeminarId) {
+          loadAttendedParticipants(selectedSeminarId);
+        }
       } else {
         setMessage("❌ Gagal menyimpan");
       }
@@ -87,149 +197,36 @@ export default function CertificateSettingsPage() {
     }
   };
 
-  const generatePreview = () => {
-    if (!settings) return "";
-    const months = [
-      "I", "II", "III", "IV", "V", "VI",
-      "VII", "VIII", "IX", "X", "XI", "XII",
-    ];
-    const monthRoman = months[new Date().getMonth()];
-    return settings.format
-      .replace("{prefix}", settings.letterPrefix)
-      .replace("{letterno}", settings.letterNo)
-      .replace("{nomor}", String(settings.currentNumber).padStart(3, "0"))
-      .replace("{kode}", settings.institutionCode)
-      .replace("{bulan}", monthRoman)
-      .replace("{tahun}", settings.year);
-  };
-
-  // User management functions
-  const loadUsers = async () => {
+  const saveCertificateNumber = async () => {
+    if (!editingParticipant || !selectedSeminarId) return;
+    setEditLoading(true);
+    setEditError("");
     try {
-      const params = new URLSearchParams();
-      if (userSearch) params.append("search", userSearch);
-      if (userRoleFilter) params.append("role", userRoleFilter);
-      const res = await fetch(`/api/users?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data.data || []);
-      }
-    } catch {
-      setUserMessage("❌ Gagal memuat data pengguna");
-    } finally {
-      setUsersLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadUsers();
-  }, [userSearch, userRoleFilter]);
-
-  const openAddUser = () => {
-    setEditingUserId(null);
-    setUserForm({
-      fullName: "",
-      email: "",
-      password: "",
-      role: "mahasiswa",
-      institutionName: "",
-      isActive: true,
-    });
-    setShowUserModal(true);
-  };
-
-  const openEditUser = (user: User) => {
-    setEditingUserId(user.id);
-    setUserForm({
-      fullName: user.fullName,
-      email: user.email,
-      password: "",
-      role: user.role,
-      institutionName: user.institutionName || "",
-      isActive: user.isActive,
-    });
-    setShowUserModal(true);
-  };
-
-  const saveUser = async () => {
-    if (!userForm.fullName.trim() || !userForm.email.trim()) {
-      setUserMessage("Nama lengkap dan email harus diisi");
-      return;
-    }
-    if (!editingUserId && !userForm.password.trim()) {
-      setUserMessage("Password harus diisi untuk pengguna baru");
-      return;
-    }
-    setUserSaving(true);
-    setUserMessage("");
-    try {
-      const url = editingUserId ? `/api/users/${editingUserId}` : "/api/users";
-      const method = editingUserId ? "PUT" : "POST";
-      const body = { ...userForm };
-      if (!editingUserId) {
-        // For new users, password is required and will be sent
-      } else if (!userForm.password) {
-        // For editing, if password is empty, don't send it
-        delete (body as Record<string, unknown>).password;
-      }
-      
-      const res = await fetch(url, {
-        method,
+      const res = await fetch(`/api/registrations?id=${editingParticipant.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          certificateNumber: editNumber,
+          seminarId: selectedSeminarId,
+        }),
       });
+      const data = await res.json();
       if (res.ok) {
-        setShowUserModal(false);
-        loadUsers();
+        setEditModalOpen(false);
+        setEditingParticipant(null);
+        setMessage("✅ Nomor sertifikat berhasil diperbarui");
+        // Refresh settings dari server agar nextCertificateNumber selalu sinkron
+        await refreshSettings();
+        loadAttendedParticipants(selectedSeminarId);
       } else {
-        const data = await res.json();
-        setUserMessage(`❌ ${data.error}`);
+        setEditError(data.error || "Gagal mengupdate nomor sertifikat");
       }
     } catch {
-      setUserMessage("❌ Gagal menyimpan pengguna");
+      setEditError("❌ Gagal terhubung ke server");
     } finally {
-      setUserSaving(false);
+      setEditLoading(false);
     }
   };
-
-  const deleteUser = async (id: string) => {
-    if (!confirm("Hapus pengguna ini?")) return;
-    try {
-      const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
-      if (res.ok) loadUsers();
-      else setUserMessage("❌ Gagal menghapus");
-    } catch {
-      setUserMessage("❌ Gagal menghapus");
-    }
-  };
-
-  const toggleUserActive = async (user: User) => {
-    try {
-      const res = await fetch(`/api/users/${user.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !user.isActive }),
-      });
-      if (res.ok) loadUsers();
-      else setUserMessage("❌ Gagal mengubah status");
-    } catch {
-      setUserMessage("❌ Gagal mengubah status");
-    }
-  };
-
-  const filteredUsers = users.filter((u) => {
-    if (userSearch) {
-      const query = userSearch.toLowerCase();
-      if (!u.fullName.toLowerCase().includes(query) &&
-          !u.email.toLowerCase().includes(query) &&
-          !u.role.toLowerCase().includes(query) &&
-          !(u.institutionName && u.institutionName.toLowerCase().includes(query))) {
-        return false;
-      }
-    }
-    if (userRoleFilter && u.role !== userRoleFilter) return false;
-    return true;
-  });
 
   if (loading) {
     return (
@@ -255,10 +252,10 @@ export default function CertificateSettingsPage() {
     <div className="p-6 max-w-4xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          Pengaturan Nomor Surat
+          Pengaturan Nomor Sertifikat
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Atur format dan nomor surat sertifikat
+          Atur format dan penomoran sertifikat peserta
         </p>
       </div>
 
@@ -274,62 +271,302 @@ export default function CertificateSettingsPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-6 space-y-5">
-        <div>
+      {/* Participants Preview */}
+      <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-6 space-y-5 mb-6">
+        <h2 className="text-lg font-semibold text-gray-900">Peserta yang Sudah Presensi</h2>
+        
+        <div className="mb-4">
           <label className="block text-sm font-semibold text-gray-700 mb-1">
-            Prefix Surat
+            Pilih Seminar
           </label>
-          <div className="flex items-center">
-            <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-300 rounded-l-xl text-sm font-semibold text-slate-600">
-              NO :
-            </span>
-            <input
-              type="text"
-              placeholder="421.5"
-              value={settings?.letterPrefix?.replace(/^NO\s*:\s*/, "") ?? ""}
-              onChange={(e) =>
-                setSettings(
-                  settings
-                    ? { ...settings, letterPrefix: `NO : ${e.target.value}` }
-                    : ({ letterPrefix: `NO : ${e.target.value}` } as Settings),
-                )
-              }
-              className="flex-1 px-4 py-2.5 border border-slate-300 rounded-r-xl text-sm focus:border-blue-400 outline-none"
-            />
+          <select
+            value={selectedSeminarId}
+            onChange={(e) => {
+              setSelectedSeminarId(e.target.value);
+              if (e.target.value) loadAttendedParticipants(e.target.value);
+            }}
+            className="w-full max-w-md px-4 py-3 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
+          >
+            <option value="">-- Pilih Seminar --</option>
+            {seminars.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title} — {s.date}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedSeminarId && (
+          <div>
+            {loadingParticipants ? (
+              <div className="text-center py-8">
+                <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+                <p className="text-sm text-slate-500 mt-2">Memuat peserta hadir...</p>
+              </div>
+            ) : participants.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
+                Belum ada peserta yang hadir untuk seminar ini
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="text-left px-4 py-3 font-semibold text-slate-700">Nama</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-700">No. Sertifikat</th>
+                      <th className="text-center px-4 py-3 font-semibold text-slate-700">Aksi</th>
+                      <th className="text-left px-4 py-3 font-semibold text-slate-700">No. WA</th>
+                      <th className="text-center px-4 py-3 font-semibold text-slate-700">Sertifikat</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {participants.map((p: Participant) => (
+                      <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium">{p.fullName}</td>
+                        <td className="px-4 py-3">
+                          {p.certificateCode ? (
+                            <span className="font-mono text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded-lg">
+                              {p.certificateCode}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => {
+                              setEditingParticipant(p);
+                              setEditNumber(p.certificateNumber || settings.nextCertificateNumber);
+                              setEditError("");
+                              setEditModalOpen(true);
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all"
+                            title={p.certificateCode ? "Edit nomor sertifikat" : "Buat nomor sertifikat"}
+                          >
+                            ✏️ Edit No.
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-slate-500">{p.phoneNumber || <span className="text-red-400">-</span>}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${p.certificateSent ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                            {p.certificateSent ? "✓ Terkirim" : "Belum"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Edit Certificate Number Modal */}
+      {editModalOpen && editingParticipant && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setEditModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {editingParticipant.certificateCode ? "Edit Nomor Sertifikat" : "Buat Nomor Sertifikat"}
+            </h3>
+
+            <div className="mb-2">
+              <p className="text-sm text-slate-500 mb-0.5">Peserta</p>
+              <p className="font-medium text-gray-900">{editingParticipant.fullName}</p>
+            </div>
+
+            {editingParticipant.certificateCode && (
+              <div className="mb-4">
+                <p className="text-sm text-slate-500 mb-0.5">Nomor Saat Ini</p>
+                <p className="font-mono text-sm text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg inline-block">
+                  {editingParticipant.certificateCode}
+                </p>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Nomor Urut Baru
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={editNumber}
+                onChange={(e) => {
+                  setEditNumber(parseInt(e.target.value) || 1);
+                  setEditError("");
+                }}
+                className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
+              />
+              {generateCode(settings, editNumber) && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Preview: <span className="font-mono text-blue-600">{generateCode(settings, editNumber)}</span>
+                </p>
+              )}
+            </div>
+
+            {editError && (
+              <p className="text-sm text-red-600 mb-4 bg-red-50 px-3 py-2 rounded-lg">{editError}</p>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setEditModalOpen(false);
+                  setEditingParticipant(null);
+                  setEditError("");
+                }}
+                className="flex-1 px-4 py-2.5 border border-slate-300 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-all text-sm"
+              >
+                Batal
+              </button>
+              <button
+                onClick={saveCertificateNumber}
+                disabled={editLoading}
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50 text-sm"
+              >
+                {editLoading ? "Menyimpan..." : "Simpan"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Form - Simple 6 Component Fields */}
+      <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-6 space-y-5">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-blue-200">
+            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Konfigurasi Nomor</h2>
+            <p className="text-xs text-gray-500">Atur penomoran sertifikat peserta</p>
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
-            Kode Instansi
-          </label>
-          <input
-            type="text"
-            value={settings.institutionCode}
-            onChange={(e) =>
-              setSettings({ ...settings, institutionCode: e.target.value })
-            }
-            className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
-          />
+        {/* Info Nomor Terakhir & Berikutnya */}
+        <div className="grid sm:grid-cols-2 gap-4">
+          {/* Nomor Terakhir Diterbitkan */}
+          <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-4 border border-emerald-200">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                Nomor Terakhir
+              </p>
+            </div>
+            <p className="text-2xl font-bold text-emerald-800 font-mono">
+              {settings.lastCertificateNumber > 0
+                ? String(settings.lastCertificateNumber).padStart(2, "0")
+                : "—"}
+            </p>
+            <p className="text-xs text-emerald-600 mt-1">
+              {settings.lastCertificateNumber > 0
+                ? generateCode(settings, settings.lastCertificateNumber)
+                : "Belum ada sertifikat terbit"}
+            </p>
+          </div>
+
+          {/* Nomor Selanjutnya */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                Nomor Selanjutnya
+              </p>
+            </div>
+            <p className="text-2xl font-bold text-blue-800 font-mono">
+              {String(settings.nextCertificateNumber).padStart(2, "0")}
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              {generateCode(settings, settings.nextCertificateNumber)}
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        {/* 6 Komponen Utama */}
+        <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4">
+          {/* 1. Nomor Urut Berikutnya */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Nomor Berikutnya
+              Mulai Dari Nomor
             </label>
             <input
               type="number"
-              value={settings.currentNumber}
+              min="1"
+              value={settings.nextCertificateNumber}
               onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  currentNumber: parseInt(e.target.value) || 1,
-                })
+                setSettings({ ...settings, nextCertificateNumber: parseInt(e.target.value) || 1 })
               }
+              className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <p className="text-xs text-slate-400 mt-1">Atur ulang awal penomoran</p>
+          </div>
+
+          {/* 2. Jenis Surat */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Jenis Surat
+            </label>
+            <input
+              type="text"
+              value={settings.letterType}
+              onChange={(e) =>
+                setSettings({ ...settings, letterType: e.target.value })
+              }
+              placeholder="KET"
               className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
             />
+            <p className="text-xs text-slate-400 mt-1">Keterangan</p>
           </div>
+
+          {/* 3. Kode Unit */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Kode Unit
+            </label>
+            <input
+              type="text"
+              value={settings.unitCode}
+              onChange={(e) =>
+                setSettings({ ...settings, unitCode: e.target.value })
+              }
+              placeholder="IV.6.AU"
+              className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
+            />
+            <p className="text-xs text-slate-400 mt-1">Kode Instansi/Bagian</p>
+          </div>
+
+          {/* 4. Klasifikasi */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Klasifikasi
+            </label>
+            <input
+              type="text"
+              value={settings.classification}
+              onChange={(e) =>
+                setSettings({ ...settings, classification: e.target.value })
+              }
+              placeholder="A"
+              className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
+            />
+            <p className="text-xs text-slate-400 mt-1">Kategori Surat</p>
+          </div>
+
+          {/* 5. Bulan (readonly) */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Bulan
+            </label>
+            <div className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-600 font-semibold">
+              {currentMonthRoman}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Otomatis Romawi</p>
+          </div>
+
+          {/* 6. Tahun */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               Tahun
@@ -342,30 +579,16 @@ export default function CertificateSettingsPage() {
               }
               className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
             />
+            <p className="text-xs text-slate-400 mt-1">Otomatis</p>
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
-            Format Nomor
-          </label>
-          <input
-            type="text"
-            value={settings.format}
-            onChange={(e) =>
-              setSettings({ ...settings, format: e.target.value })
-            }
-            className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
-          />
-          <p className="text-xs text-slate-400 mt-1">
-            Gunakan: {"{prefix}"}, {"{letterno}"}, {"{nomor}"}, {"{kode}"},{" "}
-            {"{bulan}"}, {"{tahun}"}
+        {/* Hasil Akhir Preview */}
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-200">
+          <p className="text-xs font-semibold text-blue-600 mb-2">Hasil Akhir</p>
+          <p className="text-xl font-bold text-blue-800 font-mono tracking-wide">
+            {generateCode(settings, settings.nextCertificateNumber || 1)}
           </p>
-        </div>
-
-        <div className="bg-slate-50 rounded-xl p-4">
-          <p className="text-xs font-semibold text-slate-500 mb-1">Preview</p>
-          <p className="text-lg font-bold text-blue-700">{generatePreview()}</p>
         </div>
 
         <button
@@ -376,270 +599,6 @@ export default function CertificateSettingsPage() {
           {saving ? "Menyimpan..." : "Simpan Pengaturan"}
         </button>
       </div>
-
-      {/* Management User Section */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Management User</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Kelola pengguna sistem
-            </p>
-          </div>
-          <button
-            onClick={openAddUser}
-            className="px-4 py-2.5 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-all shadow-lg text-sm"
-          >
-            + Tambah User
-          </button>
-        </div>
-
-        {userMessage && (
-          <div
-            className={`mb-6 px-5 py-4 rounded-xl text-sm ${
-              userMessage.startsWith("❌")
-                ? "bg-red-50 border border-red-200 text-red-700"
-                : "bg-green-50 border border-green-200 text-green-700"
-            }`}
-          >
-            {userMessage}
-          </div>
-        )}
-
-        {/* Search and Filter */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-4">
-          <div className="relative flex-1">
-            <input
-              type="text"
-              placeholder="Cari nama, email, role, instansi..."
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-              className="w-full px-4 py-2.5 pl-10 border border-slate-300 rounded-xl text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
-            />
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            {userSearch && (
-              <button
-                onClick={() => setUserSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-          <select
-            value={userRoleFilter}
-            onChange={(e) => setUserRoleFilter(e.target.value)}
-            className="px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 focus:outline-none bg-white min-w-[180px]"
-          >
-            <option value="">Semua Role</option>
-            <option value="admin">Admin</option>
-            <option value="mahasiswa">Mahasiswa</option>
-            <option value="dosen">Dosen</option>
-            <option value="koordinator">Koordinator</option>
-          </select>
-        </div>
-
-        {usersLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
-          </div>
-        ) : filteredUsers.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">
-            {userSearch || userRoleFilter ? "Tidak ada pengguna yang cocok" : "Belum ada pengguna"}
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Nama Lengkap</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Email</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Role</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-700">Instansi</th>
-                  <th className="text-center px-4 py-3 font-semibold text-slate-700">Status</th>
-                  <th className="text-center px-4 py-3 font-semibold text-slate-700">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((u) => (
-                  <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium">{u.fullName}</td>
-                    <td className="px-4 py-3 text-slate-500">{u.email}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${
-                        u.role === "admin" ? "bg-purple-100 text-purple-700" :
-                        u.role === "dosen" ? "bg-blue-100 text-blue-700" :
-                        u.role === "koordinator" ? "bg-indigo-100 text-indigo-700" :
-                        "bg-green-100 text-green-700"
-                      }`}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">{u.institutionName || "-"}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                        u.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"
-                      }`}>
-                        {u.isActive ? "Aktif" : "Tidak Aktif"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => toggleUserActive(u)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                            u.isActive
-                              ? "bg-red-50 text-red-600 hover:bg-red-100"
-                              : "bg-green-100 text-green-700 hover:bg-green-200"
-                          }`}
-                        >
-                          {u.isActive ? "Nonaktifkan" : "Aktifkan"}
-                        </button>
-                        <button
-                          onClick={() => openEditUser(u)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => deleteUser(u.id)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100"
-                        >
-                          Hapus
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* User Modal */}
-      {showUserModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">
-              {editingUserId ? "Edit Pengguna" : "Tambah Pengguna"}
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Nama Lengkap
-                </label>
-                <input
-                  type="text"
-                  value={userForm.fullName}
-                  onChange={(e) => setUserForm({ ...userForm, fullName: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={userForm.email}
-                  onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Password {editingUserId ? "(kosongkan jika tidak diubah)" : ""}
-                </label>
-                <input
-                  type="password"
-                  value={userForm.password}
-                  onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Role
-                </label>
-                <select
-                  value={userForm.role}
-                  onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
-                >
-                  <option value="mahasiswa">Mahasiswa</option>
-                  <option value="dosen">Dosen</option>
-                  <option value="koordinator">Koordinator</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Instansi (opsional)
-                </label>
-                <input
-                  type="text"
-                  value={userForm.institutionName}
-                  onChange={(e) => setUserForm({ ...userForm, institutionName: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
-                />
-              </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={userForm.isActive}
-                  onChange={(e) => setUserForm({ ...userForm, isActive: e.target.checked })}
-                  className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="isActive" className="ml-2 text-sm text-gray-700">
-                  Aktif
-                </label>
-              </div>
-            </div>
-            {userMessage && (
-              <div
-                className={`mt-4 px-4 py-3 rounded-xl text-sm ${
-                  userMessage.startsWith("❌")
-                    ? "bg-red-50 border border-red-200 text-red-700"
-                    : "bg-green-50 border border-green-200 text-green-700"
-                }`}
-              >
-                {userMessage}
-              </div>
-            )}
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowUserModal(false)}
-                className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200"
-              >
-                Batal
-              </button>
-              <button
-                onClick={saveUser}
-                disabled={userSaving}
-                className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-              >
-                {userSaving ? "Menyimpan..." : "Simpan"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

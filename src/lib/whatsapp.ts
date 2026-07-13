@@ -74,14 +74,16 @@ export function buildCertificateMessage(
   participantName: string,
   seminarTitle: string,
   seminarDate: string,
+  certificateNumber?: string,
 ): string {
+  const certLine = certificateNumber ? `\nNo. Sertifikat: ${certificateNumber}` : "";
   return `🎓 *SERTIFIKAT SEMINAR*
     
 Yth. ${participantName},
 
 Terima kasih telah mengikuti seminar:
 *${seminarTitle}*
-Tanggal: ${seminarDate}
+Tanggal: ${seminarDate}${certLine}
 
 Sertifikat Anda telah diterbitkan.
 Untuk mengunduh sertifikat, silakan hubungi panitia Diklat RS PKU Muhammadiyah Gombong.
@@ -95,12 +97,14 @@ export async function sendCertificate(
   participantName: string,
   seminarTitle: string,
   seminarDate: string,
+  certificateNumber?: string,
 ): Promise<WhatsAppResponse> {
   const formattedNumber = formatPhoneNumber(phoneNumber);
   const message = buildCertificateMessage(
     participantName,
     seminarTitle,
     seminarDate,
+    certificateNumber,
   );
 
   console.log(`📤 Sending certificate WhatsApp to ${formattedNumber}...`);

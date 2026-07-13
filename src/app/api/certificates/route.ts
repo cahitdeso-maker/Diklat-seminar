@@ -4,25 +4,19 @@ import { certificates, registrations, seminars } from "@/lib/schema";
 import { generateId } from "@/lib/utils";
 import { eq, and } from "drizzle-orm";
 
-// GET: Ambil sertifikat by registrationId atau seminarId
+// GET: Ambil semua sertifikat (filter by userId / title via query params jika perlu)
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const registrationId = searchParams.get("registrationId");
-    const seminarId = searchParams.get("seminarId");
+    const userId = searchParams.get("userId");
 
     let results;
 
-    if (registrationId) {
+    if (userId) {
       results = await db
         .select()
         .from(certificates)
-        .where(eq(certificates.registrationId, registrationId));
-    } else if (seminarId) {
-      results = await db
-        .select()
-        .from(certificates)
-        .where(eq(certificates.seminarId, seminarId));
+        .where(eq(certificates.userId, userId));
     } else {
       results = await db.select().from(certificates);
     }
@@ -88,14 +82,12 @@ export async function POST(request: Request) {
     const certId = generateId();
 
     // Di tahap awal, kita simpan data sertifikat tanpa file PDF
-    // Nanti bisa ditambahkan PDF generation dengan puppeteer
     await db.insert(certificates).values({
       id: certId,
-      registrationId,
-      seminarId,
+      userId: registrationId,
+      title: seminar.title,
       fileUrl: null,
-      sentVia: null,
-      sentAt: null,
+      generatedDate: new Date(),
       isDeleted: false,
     });
 

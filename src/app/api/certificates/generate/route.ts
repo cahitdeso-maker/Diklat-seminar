@@ -81,47 +81,31 @@ export async function GET(request: Request) {
       .where(eq(signatureSettings.isActive, true))
       .limit(1);
 
-    const [certNumberSettings] = await db
-      .select()
-      .from(certificateNumberSettings)
-      .where(eq(certificateNumberSettings.isDeleted, false))
-      .limit(1);
+    const currentYear = String(new Date().getFullYear());
+    const months = [
+      "I", "II", "III", "IV", "V", "VI",
+      "VII", "VIII", "IX", "X", "XI", "XII",
+    ];
+    const monthRoman = months[new Date().getMonth()];
 
+    // Gunakan certificateCode yang sudah tersimpan di registrasi
     let certNumber = "";
-    if (certNumberSettings) {
-      const months = [
-        "I",
-        "II",
-        "III",
-        "IV",
-        "V",
-        "VI",
-        "VII",
-        "VIII",
-        "IX",
-        "X",
-        "XI",
-        "XII",
-      ];
-      const monthRoman = months[new Date().getMonth()];
-      certNumber = certNumberSettings.format
-        .replace("{prefix}", certNumberSettings.letterPrefix)
-        .replace("{letterno}", certNumberSettings.letterNo)
-        .replace(
-          "{nomor}",
-          String(certNumberSettings.currentNumber).padStart(3, "0"),
-        )
-        .replace("{kode}", certNumberSettings.institutionCode)
-        .replace("{bulan}", monthRoman)
-        .replace("{tahun}", certNumberSettings.year);
-
-      await db
-        .update(certificateNumberSettings)
-        .set({
-          currentNumber: certNumberSettings.currentNumber + 1,
-          updatedAt: new Date(),
-        })
-        .where(eq(certificateNumberSettings.id, certNumberSettings.id));
+    if (reg.certificateCode) {
+      // Tampilkan dengan prefix "NO : " jika belum ada
+      certNumber = reg.certificateCode.startsWith("NO : ")
+        ? reg.certificateCode
+        : `NO : ${reg.certificateCode}`;
+    } else {
+      // Fallback: generate dari settings jika belum ada (untuk data lama)
+      try {
+        const { generateCertificateNumber } = await import("@/lib/certificate-number");
+        const result = await generateCertificateNumber(registrationId, seminarId);
+        certNumber = result.code.startsWith("NO : ")
+          ? result.code
+          : `NO : ${result.code}`;
+      } catch {
+        certNumber = "";
+      }
     }
 
     const seminarDate = new Date(seminar.date);
@@ -298,7 +282,7 @@ function generateCertificateHtml(
     </div>
     <div class="cert-body">
       <div class="cert-center">
-        ${certNumber ? `<div class="cert-number">No : ${certNumber}</div>` : ""}
+        ${certNumber ? `<div class="cert-number">${certNumber}</div>` : ""}
         <div class="cert-label">Diberikan Kepada :</div>
         <div class="cert-name-wrap">
           <div class="cert-name">${name}</div>
@@ -313,10 +297,10 @@ function generateCertificateHtml(
         </div>
         <div class="cert-signature">
           <div class="signature-date">Gombong, ${date.split(",").pop()?.trim() || date}</div>
-          <div class="signature-position">${sigPosition}</div>
+          ${sigPosition ? `<div class="signature-position">${sigPosition}</div>` : ""}
           <div class="signature-space ${sigImage ? "has-signature" : ""}"></div>
           ${sigImage ? `<img src="${sigImage}" alt="Tanda Tangan" class="signature-img" />` : ""}
-          <div class="signature-name">${sigName}</div>
+          ${sigName ? `<div class="signature-name">${sigName}</div>` : ""}
           ${sigNip ? `<div class="signature-nip">NIP. ${sigNip}</div>` : ""}
         </div>
       </div>

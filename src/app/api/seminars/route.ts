@@ -194,6 +194,7 @@ export async function PATCH(request: Request) {
       "useQr",
       "useFace",
       "isActive",
+      "presensiOpen",
       "isDeleted",
     ];
 

@@ -8,6 +8,7 @@ export default function CertificatesPage() {
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [sendingAll, setSendingAll] = useState(false);
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -74,10 +75,10 @@ export default function CertificatesPage() {
     )
       return;
 
+    setSendingAll(true);
     let sent = 0;
     let failed = 0;
     for (const p of presentParticipants) {
-      setSendingId(p.id);
       try {
         const res = await fetch("/api/certificates/send", {
           method: "POST",
@@ -90,7 +91,7 @@ export default function CertificatesPage() {
         failed++;
       }
     }
-    setSendingId(null);
+    setSendingAll(false);
     setMessage(`${sent} sertifikat terkirim, ${failed} gagal.`);
     loadParticipants(selectedSeminarId);
   };
@@ -185,10 +186,10 @@ export default function CertificatesPage() {
           {participants.filter((p) => p.isPresent).length > 0 && (
             <button
               onClick={sendAllCertificates}
-              disabled={sendingId !== null}
+              disabled={sendingAll}
               className="mb-6 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg disabled:opacity-50 text-sm"
             >
-              {sendingId !== null
+              {sendingAll
                 ? "Mengirim..."
                 : `📤 Kirim Semua Sertifikat (${participants.filter((p) => p.isPresent && p.phoneNumber && !p.certificateSent).length} belum terkirim)`}
             </button>
@@ -217,7 +218,13 @@ export default function CertificatesPage() {
                       Nama
                     </th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-700">
+                      No. Sertifikat
+                    </th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-700">
                       No. WA
+                    </th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-700">
+                      Email
                     </th>
                     <th className="text-center px-4 py-3 font-semibold text-slate-700">
                       Presensi
@@ -242,8 +249,22 @@ export default function CertificatesPage() {
                         className="border-b border-slate-100 hover:bg-slate-50"
                       >
                         <td className="px-4 py-3 font-medium">{p.fullName}</td>
+                        <td className="px-4 py-3">
+                          {p.certificateCode ? (
+                            <span className="font-mono text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded-lg">
+                              {p.certificateCode}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 text-xs">-</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-slate-500">
                           {p.phoneNumber || (
+                            <span className="text-red-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500">
+                          {p.email || (
                             <span className="text-red-400">-</span>
                           )}
                         </td>
@@ -277,6 +298,23 @@ export default function CertificatesPage() {
                           <div className="flex items-center justify-center gap-2">
                             {isPresent && (
                               <>
+                                {hasPhone && (
+                                  <button
+                                    onClick={() => sendCertificateWa(p.id)}
+                                    disabled={sendingId === p.id}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40 ${
+                                      isSent
+                                        ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                                        : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                    }`}
+                                  >
+                                    {sendingId === p.id
+                                      ? "Mengirim..."
+                                      : isSent
+                                        ? "📤 Kirim Ulang"
+                                        : "📤 Kirim"}
+                                  </button>
+                                )}
                                 <button
                                   onClick={() =>
                                     window.open(
@@ -288,17 +326,6 @@ export default function CertificatesPage() {
                                 >
                                   🖨️ Cetak
                                 </button>
-                                {hasPhone && !isSent && (
-                                  <button
-                                    onClick={() => sendCertificateWa(p.id)}
-                                    disabled={sendingId === p.id}
-                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-40"
-                                  >
-                                    {sendingId === p.id
-                                      ? "Mengirim..."
-                                      : "📤 Kirim"}
-                                  </button>
-                                )}
                               </>
                             )}
                             {!isPresent && (

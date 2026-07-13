@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { registrations, seminars } from "@/lib/schema";
+import { registrations, seminars, certificates } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { sendCertificate } from "@/lib/whatsapp";
+import { generateCertificateNumber } from "@/lib/certificate-number";
+import { generateId } from "@/lib/utils";
 
 function getSessionUser(request: Request) {
   const cookieHeader = request.headers.get("cookie") || "";
@@ -69,6 +71,21 @@ export async function POST(request: Request) {
       );
     }
 
+    // Generate unique certificate number jika belum ada
+    let certNumber = "";
+    if (reg.certificateCode) {
+      // Gunakan nomor yang sudah tersimpan
+      certNumber = reg.certificateCode.startsWith("NO : ") ? reg.certificateCode : `NO : ${reg.certificateCode}`;
+    } else {
+      // Generate nomor baru untuk peserta lama (sebelum fitur ini)
+      try {
+        const certResult = await generateCertificateNumber(reg.id, reg.seminarId);
+        certNumber = certResult.code.startsWith("NO : ") ? certResult.code : `NO : ${certResult.code}`;
+      } catch (certErr) {
+        console.warn("Certificate number generation failed:", certErr);
+      }
+    }
+
     // Kirim sertifikat via WhatsApp
     const seminarDate = String(seminar.date).split("T")[0];
     
@@ -77,6 +94,7 @@ export async function POST(request: Request) {
       reg.fullName,
       seminar.title,
       seminarDate,
+      certNumber,
     );
 
     if (!result.success) {
@@ -89,9 +107,22 @@ export async function POST(request: Request) {
       .set({ certificateSent: true })
       .where(eq(registrations.id, registrationId));
 
+    // Simpan record ke tabel certificates
+    const certId = generateId();
+    await db.insert(certificates).values({
+      id: certId,
+      userId: registrationId,
+      title: seminar.title,
+      certificateNumber: certNumber,
+      fileUrl: null,
+      generatedDate: new Date(),
+      isDeleted: false,
+    });
+
     return NextResponse.json({
       success: true,
       message: `Sertifikat berhasil dikirim ke ${reg.phoneNumber}`,
+      certificateNumber: certNumber,
     });
   } catch (error) {
     console.error("Send certificate error:", error);

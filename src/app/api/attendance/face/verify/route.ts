@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { registrations, attendance } from "@/lib/schema";
+import { registrations, attendance, certificates, seminars } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { SimilarityService } from "@/services/SimilarityService";
+import { generateCertificateNumber } from "@/lib/certificate-number";
 
 /**
  * Face Verify API - Compares captured face embedding with stored embeddings.
@@ -89,6 +90,15 @@ export async function POST(req: NextRequest) {
 
     // Mark as present
     const matchedReg = bestMatch.registration;
+    
+    // Generate certificate number (auto-generate saat presensi)
+    let certResult = null;
+    try {
+      certResult = await generateCertificateNumber(matchedReg.id, matchedReg.seminarId);
+    } catch (certErr) {
+      console.warn("Certificate number generation skipped:", certErr);
+    }
+
     await db
       .update(registrations)
       .set({
@@ -97,6 +107,26 @@ export async function POST(req: NextRequest) {
         presentMethod: "face",
       })
       .where(eq(registrations.id, matchedReg.id));
+
+    // Ambil data seminar untuk title
+    const [seminarData] = await db
+      .select({ title: seminars.title })
+      .from(seminars)
+      .where(eq(seminars.id, matchedReg.seminarId))
+      .limit(1);
+
+    // Simpan record ke tabel certificates jika nomor berhasil digenerate
+    if (certResult) {
+      await db.insert(certificates).values({
+        id: uuidv4(),
+        userId: matchedReg.id,
+        title: seminarData?.title || "Sertifikat Seminar",
+        certificateNumber: certResult.code,
+        fileUrl: null,
+        generatedDate: new Date(),
+        isDeleted: false,
+      });
+    }
 
     // Create attendance record
     await db.insert(attendance).values({
@@ -118,6 +148,7 @@ export async function POST(req: NextRequest) {
         institution: matchedReg.institution,
         profession: matchedReg.profession,
         qrCode: matchedReg.qrCode,
+        certificateNumber: certResult?.code || null,
       },
     });
   } catch (error) {

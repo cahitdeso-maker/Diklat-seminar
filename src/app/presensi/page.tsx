@@ -41,6 +41,29 @@ export default function PresensiPage() {
   const previousLandmarksRef = useRef<Float32Array | null>(null);
   const isMountedRef = useRef(true);
 
+  const cleanupDetection = useCallback(() => {
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    isDetectingRef.current = false;
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    cleanupDetection();
+    if (faceCameraRef.current) {
+      faceCameraRef.current.stop();
+      faceCameraRef.current = null;
+    }
+    livenessRef.current = null;
+    previousLandmarksRef.current = null;
+    setScanning(false);
+    setVerifying(false);
+    setFaceReady(false);
+    setFaceStatus("");
+    setLivenessProgress(0);
+  }, [cleanupDetection]);
+
   // Load models on mount
   useEffect(() => {
     isMountedRef.current = true;
@@ -80,29 +103,6 @@ export default function PresensiPage() {
       stopCamera();
     }
   }, [step, searchType]);
-
-  const cleanupDetection = useCallback(() => {
-    if (animationFrameRef.current !== null) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    isDetectingRef.current = false;
-  }, []);
-
-  const stopCamera = useCallback(() => {
-    cleanupDetection();
-    if (faceCameraRef.current) {
-      faceCameraRef.current.stop();
-      faceCameraRef.current = null;
-    }
-    livenessRef.current = null;
-    previousLandmarksRef.current = null;
-    setScanning(false);
-    setVerifying(false);
-    setFaceReady(false);
-    setFaceStatus("");
-    setLivenessProgress(0);
-  }, [cleanupDetection]);
 
   const startFaceScan = async () => {
     if (!videoRef.current || modelsLoading) return;
@@ -308,9 +308,19 @@ export default function PresensiPage() {
       debugLog("verification result", data);
 
       if (res.ok && data.match) {
+        // Check if presensi is open for this participant's seminar
+        const presensiRes = await fetch(`/api/seminars/${data.participant.seminarId}/presensi-status`);
+        if (presensiRes.ok) {
+          const presensiData = await presensiRes.json();
+          if (!presensiData.open) {
+            setError("Presensi untuk seminar ini sedang ditutup oleh admin");
+            setVerifying(false);
+            return;
+          }
+        }
         setSimilarityScore(data.similarity);
         setParticipant(data.participant);
-        setStep("done");
+        setStep("result");
         stopCamera();
       } else {
         setError(data.error || "Wajah tidak cocok dengan data registrasi");
@@ -338,6 +348,16 @@ export default function PresensiPage() {
           ? all.find((r: any) => r.qrCode === qrCode.trim().toUpperCase())
           : null;
         if (found) {
+          // Check if presensi is open for this participant's seminar
+          const presensiRes = await fetch(`/api/seminars/${found.seminarId}/presensi-status`);
+          if (presensiRes.ok) {
+            const presensiData = await presensiRes.json();
+            if (!presensiData.open) {
+              setError("Presensi untuk seminar ini sedang ditutup oleh admin");
+              setLoading(false);
+              return;
+            }
+          }
           setParticipant(found);
           setStep("result");
         } else {

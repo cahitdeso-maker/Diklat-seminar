@@ -23,7 +23,6 @@ export const users = pgTable("users", {
   schoolOrigin: varchar("school_origin", { length: 255 }),
   age: integer("age"),
   address: text("address"),
-  unitId: uuid("unit_id"),
   faceData: text("face_data"),
   faceEmbedding: text("face_embedding"),
   faceQuality: integer("face_quality"),
@@ -58,6 +57,7 @@ export const seminars = pgTable("seminars", {
   maxParticipants: integer("max_participants").default(0),
   useQr: boolean("use_qr").notNull().default(true),
   useFace: boolean("use_face").notNull().default(true),
+  presensiOpen: boolean("presensi_open").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   isCompleted: boolean("is_completed").notNull().default(false),
   isDeleted: boolean("is_deleted").notNull().default(false),
@@ -85,6 +85,9 @@ export const registrations = pgTable("registrations", {
   presentTime: timestamp("present_time"),
   presentMethod: varchar("present_method", { length: 20 }),
   certificateSent: boolean("certificate_sent").notNull().default(false),
+  certificateNumber: integer("certificate_number"),
+  certificateCode: varchar("certificate_code", { length: 255 }),
+  certificateGeneratedAt: timestamp("certificate_generated_at"),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -94,17 +97,15 @@ export const registrations = pgTable("registrations", {
 // ================================
 export const certificates = pgTable("certificates", {
   id: uuid("id").primaryKey().defaultRandom(),
-  registrationId: uuid("registration_id")
-    .notNull()
-    .references(() => registrations.id),
-  seminarId: uuid("seminar_id")
-    .notNull()
-    .references(() => seminars.id),
+  userId: uuid("user_id").notNull(),
+  templateId: uuid("template_id"),
+  title: varchar("title", { length: 255 }).notNull(),
+  issuanceDate: varchar("issuance_date", { length: 50 }),
   fileUrl: varchar("file_url", { length: 500 }),
-  sentVia: varchar("sent_via", { length: 20 }),
-  sentAt: timestamp("sent_at"),
-  isDeleted: boolean("is_deleted").notNull().default(false),
+  generatedDate: timestamp("generated_date"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  isDeleted: boolean("is_deleted").notNull().default(false),
+  certificateNumber: varchar("certificate_number", { length: 255 }),
 });
 
 // ================================
@@ -162,24 +163,55 @@ export const signatureSettings = pgTable("signature_settings", {
 });
 
 // ================================
-// PENGATURAN NOMOR SURAT
+// PENGATURAN NOMOR SURAT & LOG SERTIFIKAT
 // ================================
+// Multi-row table:
+// - isConfig = true  => baris konfigurasi (format settings)
+// - isConfig = false => baris log nomor sertifikat yang diterbitkan
 export const certificateNumberSettings = pgTable(
   "certificate_number_settings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+
+    // === Data nomor sertifikat (hanya untuk isConfig = false) ===
+    certificateNumber: integer("certificate_number"),
+    certificateCode: varchar("certificate_code", { length: 255 }),
+    registrationId: text("registration_id"),
+    seminarId: text("seminar_id"),
+    monthRoman: varchar("month_roman", { length: 10 }),
+
+    // === Flag pembeda ===
+    isConfig: boolean("is_config").notNull().default(false),
+
+    // === Konfigurasi format (snapshot untuk semua baris) ===
     letterPrefix: varchar("letter_prefix", { length: 50 })
       .notNull()
       .default("NO : "),
-    letterNo: varchar("letter_no", { length: 50 }).notNull().default(""),
     institutionCode: varchar("institution_code", { length: 100 })
       .notNull()
       .default("RSUD"),
-    currentNumber: integer("current_number").notNull().default(1),
+    letterType: varchar("letter_type", { length: 20 })
+      .notNull()
+      .default("KET"),
+    unitCode: varchar("unit_code", { length: 50 })
+      .notNull()
+      .default("IV.6.AU"),
+    classification: varchar("classification", { length: 10 })
+      .notNull()
+      .default("A"),
     year: varchar("year", { length: 4 }).notNull(),
     format: varchar("format", { length: 100 })
       .notNull()
       .default("{prefix}{nomor}/{kode}/{bulan}/{tahun}"),
+    participantName: varchar("participant_name", { length: 255 }).notNull().default(""),
+
+    // === Override awal penomoran (opsional, hanya di config row) ===
+    nextCertificateNumber: integer("next_certificate_number"),
+
+    // === Perilaku reset ===
+    resetOption: varchar("reset_option", { length: 20 }).notNull().default("per_tahun"),
+
+    // === Metadata ===
     isDeleted: boolean("is_deleted").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

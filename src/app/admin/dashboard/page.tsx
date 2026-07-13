@@ -16,10 +16,51 @@ export default function AdminDashboard() {
   const [recentSeminars, setRecentSeminars] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [presensiOpen, setPresensiOpen] = useState(false);
+  const [presensiLoading, setPresensiLoading] = useState(false);
+  const [presensiMsg, setPresensiMsg] = useState("");
 
   useEffect(() => {
     loadData();
+    loadPresensiStatus();
   }, []);
+
+  const loadPresensiStatus = async () => {
+    try {
+      const res = await fetch("/api/presensi-status", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setPresensiOpen(data.open === true);
+      }
+    } catch (e) {
+      console.error("Failed to load presensi status", e);
+    }
+  };
+
+  const togglePresensi = async () => {
+    setPresensiLoading(true);
+    setPresensiMsg("");
+    try {
+      const next = !presensiOpen;
+      const res = await fetch("/api/presensi-status", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ open: next }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPresensiOpen(next);
+        setPresensiMsg(data.message || (next ? "Presensi dibuka" : "Presensi ditutup"));
+      } else {
+        setPresensiMsg(data.error || "Gagal mengubah status presensi");
+      }
+    } catch (e) {
+      setPresensiMsg("Gagal mengubah status presensi");
+    } finally {
+      setPresensiLoading(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -423,6 +464,47 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </Link>
+                      {/* Presensi toggle for ongoing seminars */}
+                      {isOngoing && (
+                        <div className="px-6 pb-4 pt-2 bg-gradient-to-r from-green-50/80 via-white to-white border-t border-green-50">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2.5 h-2.5 rounded-full ${presensiOpen ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></div>
+                              <span className="text-xs font-medium text-slate-600">
+                                Akses Presensi: <span className={presensiOpen ? "text-green-600" : "text-red-600"}>{presensiOpen ? "Terbuka" : "Tertutup"}</span>
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {presensiMsg && (
+                                <span className={`text-[10px] ${
+                                  presensiMsg.includes("DIBUKA") || presensiMsg.includes("dibuka")
+                                    ? "text-green-600"
+                                    : presensiMsg.includes("DITUTUP") || presensiMsg.includes("ditutup")
+                                    ? "text-red-600"
+                                    : "text-amber-600"
+                                }`}>
+                                  {presensiMsg}
+                                </span>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); togglePresensi(); }}
+                                disabled={presensiLoading}
+                                className={`relative inline-flex h-6 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                  presensiOpen
+                                    ? "bg-green-500 focus:ring-green-500"
+                                    : "bg-slate-300 focus:ring-slate-500"
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                                    presensiOpen ? "translate-x-5" : "translate-x-0.5"
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })

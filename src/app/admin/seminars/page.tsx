@@ -64,6 +64,57 @@ export default function AdminSeminars() {
   const [, forceUpdate] = useState(0);
   // Track speakers that were deleted from DB during editing (before save)
   const [deletedSpeakerIds, setDeletedSpeakerIds] = useState<string[]>([]);
+  
+  // Presensi toggle state per seminar
+  const [presensiStatus, setPresensiStatus] = useState<Record<string, boolean>>({});
+  const [presensiLoading, setPresensiLoading] = useState<Record<string, boolean>>({});
+  const [presensiMsg, setPresensiMsg] = useState<Record<string, string>>({});
+
+  const loadPresensiStatus = async (seminarId: string) => {
+    try {
+      const res = await fetch(`/api/seminars/${seminarId}/presensi-status`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setPresensiStatus(prev => ({ ...prev, [seminarId]: data.open === true }));
+      }
+    } catch (e) {
+      console.error("Failed to load presensi status", e);
+    }
+  };
+
+  const togglePresensi = async (seminarId: string) => {
+    setPresensiLoading(prev => ({ ...prev, [seminarId]: true }));
+    setPresensiMsg(prev => ({ ...prev, [seminarId]: "" }));
+    try {
+      const next = !presensiStatus[seminarId];
+      const res = await fetch(`/api/seminars/${seminarId}/presensi-status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ open: next }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPresensiStatus(prev => ({ ...prev, [seminarId]: next }));
+        setPresensiMsg(prev => ({ ...prev, [seminarId]: data.message || (next ? "Presensi dibuka" : "Presensi ditutup") }));
+      } else {
+        setPresensiMsg(prev => ({ ...prev, [seminarId]: data.error || "Gagal mengubah status presensi" }));
+      }
+    } catch (e) {
+      setPresensiMsg(prev => ({ ...prev, [seminarId]: "Gagal mengubah status presensi" }));
+    } finally {
+      setPresensiLoading(prev => ({ ...prev, [seminarId]: false }));
+    }
+  };
+
+  const hasEnded = (sem: Seminar): boolean => {
+    if (!sem.date || !sem.endTime) {
+      return false;
+    }
+    const seminarEnd = new Date(`${sem.date}T${sem.endTime}:00`);
+    const now = new Date();
+    return seminarEnd < now;
+  };
 
   useEffect(() => {
     loadSeminars();
@@ -72,17 +123,22 @@ export default function AdminSeminars() {
     return () => clearInterval(interval);
   }, []);
 
-  // Filter seminars by status — using isCompleted from database (set server-side via API)
+  // Filter seminars by status — using isCompleted from database (set server-side via API) and end time
   const activeSeminars = seminars.filter(
-    (sem) => !sem.isDeleted && !sem.isCompleted,
+    (sem) => !sem.isDeleted && !sem.isCompleted && !hasEnded(sem),
   );
-  const completedSeminars = seminars.filter(
-    (sem) => !sem.isDeleted && sem.isCompleted,
+  const historySeminars = seminars.filter(
+    (sem) => sem.isDeleted || sem.isCompleted || hasEnded(sem),
   );
-  const deletedSeminars = seminars.filter((sem) => sem.isDeleted);
 
-  // Gabungan seminar selesai + riwayat terhapus
-  const historySeminars = [...completedSeminars, ...deletedSeminars];
+  // Load presensi status for all active seminars
+  useEffect(() => {
+    activeSeminars.forEach((sem) => {
+      if (!sem.isCompleted && !hasEnded(sem) && !sem.isDeleted) {
+        loadPresensiStatus(sem.id);
+      }
+    });
+  }, [activeSeminars]);
 
   const displayedSeminars =
     activeTab === "active" ? activeSeminars : historySeminars;
@@ -167,6 +223,11 @@ export default function AdminSeminars() {
   };
 
   const openEditForm = (sem: Seminar) => {
+    // Prevent editing seminars that have ended
+    if (hasEnded(sem)) {
+      setError("Seminar yang sudah selesai tidak dapat diedit");
+      return;
+    }
     setForm({
       title: sem.title,
       description: sem.description || "",
@@ -941,26 +1002,32 @@ export default function AdminSeminars() {
                         </button>
                       </div>
                       <div className="space-y-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-slate-800">{sem.title}</h4>
-                          {sem.isDeleted && (
-                            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-semibold rounded">
-                              Terhapus
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-slate-800">{sem.title}</h4>
+                        {sem.isDeleted && (
+                          <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-semibold rounded">
+                            Terhapus
+                          </span>
+                        )}
+                        {!sem.isDeleted && sem.isCompleted && (
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded">
+                            ✅ Selesai
+                          </span>
+                        )}
+                        {!sem.isDeleted && !sem.isCompleted && hasEnded(sem) && (
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded">
+                            ✅ Selesai
+                          </span>
+                        )}
+                        {!sem.isActive &&
+                          !sem.isDeleted &&
+                          !sem.isCompleted &&
+                          !hasEnded(sem) && (
+                            <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-semibold rounded">
+                              Nonaktif
                             </span>
                           )}
-                          {!sem.isDeleted && sem.isCompleted && (
-                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded">
-                              ✅ Selesai
-                            </span>
-                          )}
-                          {!sem.isActive &&
-                            !sem.isDeleted &&
-                            !sem.isCompleted && (
-                              <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-semibold rounded">
-                                Nonaktif
-                              </span>
-                            )}
-                        </div>
+                      </div>
                         <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
                           <div><span className="font-medium text-slate-700">Tanggal:</span> {sem.date}</div>
                           <div><span className="font-medium text-slate-700">Mulai:</span> {sem.startTime || "-"}</div>
@@ -969,7 +1036,11 @@ export default function AdminSeminars() {
                           <div><span className="font-medium text-slate-700">Kuota:</span> {sem.maxParticipants === 0 ? "Unlimited" : sem.maxParticipants}</div>
                           <div><span className="font-medium text-slate-700">QR Code:</span> {sem.useQr ? "Ya" : "Tidak"}</div>
                           <div><span className="font-medium text-slate-700">Face ID:</span> {sem.useFace ? "Ya" : "Tidak"}</div>
-                          <div><span className="font-medium text-slate-700">Status:</span> {sem.isActive ? "Aktif" : "Nonaktif"}</div>
+                          <div><span className="font-medium text-slate-700">Status:</span> 
+                            {!sem.isActive && !sem.isDeleted && !sem.isCompleted && !hasEnded(sem) ? "Nonaktif" : 
+                              sem.isDeleted ? "Terhapus" : 
+                                sem.isCompleted || hasEnded(sem) ? "Selesai" : "Aktif"}
+                          </div>
                         </div>
                         {sem.description && (
                           <div>
@@ -1008,7 +1079,8 @@ export default function AdminSeminars() {
                       </div>
                     </div>
                   ) : (
-                    // Mode VIEW — tampilan card biasa
+                    <>
+                    {/* Mode VIEW — tampilan card biasa */}
                     <div className="p-5 flex items-center justify-between">
                       <div>
                         <div className="flex items-center gap-2">
@@ -1025,9 +1097,15 @@ export default function AdminSeminars() {
                               ✅ Selesai
                             </span>
                           )}
+                          {!sem.isDeleted && !sem.isCompleted && hasEnded(sem) && (
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded">
+                              ✅ Selesai
+                            </span>
+                          )}
                           {!sem.isActive &&
                             !sem.isDeleted &&
-                            !sem.isCompleted && (
+                            !sem.isCompleted &&
+                            !hasEnded(sem) && (
                               <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-semibold rounded">
                                 Nonaktif
                               </span>
@@ -1044,57 +1122,99 @@ export default function AdminSeminars() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        {sem.isDeleted ? (
-                          <>
+                      {sem.isDeleted ? (
+                        <>
+                          <button
+                            onClick={() => handleRestore(sem.id)}
+                            className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-semibold rounded-xl hover:bg-emerald-100 transition-all"
+                          >
+                            ↩️ Pulihkan
+                          </button>
+                          <Link
+                            href={`/admin/participants?seminarId=${sem.id}`}
+                            className="px-3 py-1.5 bg-blue-50 text-blue-600 text-xs font-semibold rounded-xl hover:bg-blue-100 transition-all"
+                          >
+                            👥 Peserta
+                          </Link>
+                        </>
+                      ) : (
+                        <>
+                          {!sem.isCompleted && !hasEnded(sem) && (
                             <button
-                              onClick={() => handleRestore(sem.id)}
-                              className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-semibold rounded-xl hover:bg-emerald-100 transition-all"
+                              onClick={() => openEditForm(sem)}
+                              className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-xl hover:bg-indigo-100 transition-all"
                             >
-                              ↩️ Pulihkan
+                              ✏️ Edit
                             </button>
-                            <Link
-                              href={`/admin/participants?seminarId=${sem.id}`}
-                              className="px-3 py-1.5 bg-blue-50 text-blue-600 text-xs font-semibold rounded-xl hover:bg-blue-100 transition-all"
+                          )}
+                          <Link
+                            href={`/admin/participants?seminarId=${sem.id}`}
+                            className="px-3 py-1.5 bg-blue-50 text-blue-600 text-xs font-semibold rounded-xl hover:bg-blue-100 transition-all"
+                          >
+                            👥 Peserta
+                          </Link>
+                          {!sem.isCompleted && !hasEnded(sem) && (
+                            <button
+                              onClick={() => handleDelete(sem.id)}
+                              className="px-3 py-1.5 bg-red-50 text-red-600 text-xs font-semibold rounded-xl hover:bg-red-100 transition-all"
                             >
-                              👥 Peserta
-                            </Link>
-                          </>
-                        ) : (
-                          <>
-                            {!sem.isCompleted && (
-                              <button
-                                onClick={() => openEditForm(sem)}
-                                className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-xl hover:bg-indigo-100 transition-all"
-                              >
-                                ✏️ Edit
-                              </button>
-                            )}
-                            <Link
-                              href={`/admin/participants?seminarId=${sem.id}`}
-                              className="px-3 py-1.5 bg-blue-50 text-blue-600 text-xs font-semibold rounded-xl hover:bg-blue-100 transition-all"
+                              🗑 Hapus
+                            </button>
+                          )}
+                          {(sem.isCompleted || sem.isDeleted || hasEnded(sem)) && (
+                            <button
+                              onClick={() => setViewingId(sem.id)}
+                              className="px-3 py-1.5 bg-slate-50 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-100 transition-all"
                             >
-                              👥 Peserta
-                            </Link>
-                            {!sem.isCompleted && (
-                              <button
-                                onClick={() => handleDelete(sem.id)}
-                                className="px-3 py-1.5 bg-red-50 text-red-600 text-xs font-semibold rounded-xl hover:bg-red-100 transition-all"
-                              >
-                                🗑 Hapus
-                              </button>
-                            )}
-                            {(sem.isCompleted || sem.isDeleted) && (
-                              <button
-                                onClick={() => setViewingId(sem.id)}
-                                className="px-3 py-1.5 bg-slate-50 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-100 transition-all"
-                              >
-                                👁️ Lihat
-                              </button>
-                            )}
-                          </>
-                        )}
+                              👁️ Lihat
+                            </button>
+                          )}
+                        </>
+                      )}
                       </div>
                     </div>
+                    {/* Presensi toggle for ongoing seminars */}
+                    {!sem.isCompleted && !hasEnded(sem) && !sem.isDeleted && (
+                      <div className="px-5 pb-4 pt-0">
+                        <div className="flex items-center justify-between py-2 px-4 rounded-xl bg-slate-50">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2.5 h-2.5 rounded-full ${presensiStatus[sem.id] ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></div>
+                            <span className="text-xs font-medium text-slate-600">
+                              Akses Presensi: <span className={presensiStatus[sem.id] ? "text-green-600" : "text-red-600"}>{presensiStatus[sem.id] ? "Terbuka" : "Tertutup"}</span>
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {presensiMsg[sem.id] && (
+                              <span className={`text-[10px] ${
+                                presensiMsg[sem.id].includes("DIBUKA") || presensiMsg[sem.id].includes("dibuka")
+                                  ? "text-green-600"
+                                  : presensiMsg[sem.id].includes("DITUTUP") || presensiMsg[sem.id].includes("ditutup")
+                                  ? "text-red-600"
+                                  : "text-amber-600"
+                              }`}>
+                                {presensiMsg[sem.id]}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => togglePresensi(sem.id)}
+                              disabled={presensiLoading[sem.id]}
+                              className={`relative inline-flex h-6 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                presensiStatus[sem.id]
+                                  ? "bg-green-500 focus:ring-green-500"
+                                  : "bg-slate-300 focus:ring-slate-500"
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                                  presensiStatus[sem.id] ? "translate-x-5" : "translate-x-0.5"
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    </>
                   )}
                 </div>
               );

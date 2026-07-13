@@ -4,6 +4,7 @@ import { registrations, seminars } from "@/lib/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { generateId } from "@/lib/utils";
 import { saveBase64File } from "@/lib/save-file";
+import { generateCertificateNumber, updateCertificateNumber, validateCertificateNumber } from "@/lib/certificate-number";
 
 // Generate QR code string
 function generateQrCode(): string {
@@ -207,6 +208,16 @@ export async function POST(request: Request) {
 }
 
 // PATCH: Update registration (mark present, dll)
+async function getRegistrationSeminarId(regId: string): Promise<string> {
+  const [reg] = await db
+    .select({ seminarId: registrations.seminarId })
+    .from(registrations)
+    .where(eq(registrations.id, regId))
+    .limit(1);
+  if (!reg) throw new Error("Registration not found");
+  return reg.seminarId;
+}
+
 export async function PATCH(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -227,6 +238,13 @@ export async function PATCH(request: Request) {
       if (body.isPresent) {
         updateData.presentTime = new Date();
         updateData.presentMethod = body.presentMethod || "qr";
+        
+        // Auto-generate certificate number saat admin mark present
+        try {
+          await generateCertificateNumber(id, body.seminarId || (await getRegistrationSeminarId(id)));
+        } catch (certErr) {
+          console.warn("Certificate number generation skipped:", certErr);
+        }
       }
     }
     if (body.certificateSent !== undefined)
@@ -238,6 +256,31 @@ export async function PATCH(request: Request) {
     if (body.institution !== undefined)
       updateData.institution = body.institution;
     if (body.profession !== undefined) updateData.profession = body.profession;
+
+    // Handle certificate number edit by admin
+    if (body.certificateNumber !== undefined) {
+      const newNumber = Number(body.certificateNumber);
+      if (isNaN(newNumber) || newNumber < 1) {
+        return NextResponse.json(
+          { error: "Nomor sertifikat harus berupa angka positif" },
+          { status: 400 },
+        );
+      }
+
+      const seminarIdToUse = body.seminarId || (await getRegistrationSeminarId(id));
+
+      try {
+        const result = await updateCertificateNumber(id, seminarIdToUse, newNumber);
+        updateData.certificateNumber = result.number;
+        updateData.certificateCode = result.code;
+        updateData.certificateGeneratedAt = new Date();
+      } catch (err: any) {
+        return NextResponse.json(
+          { error: err.message || "Gagal mengupdate nomor sertifikat" },
+          { status: 400 },
+        );
+      }
+    }
 
     await db
       .update(registrations)

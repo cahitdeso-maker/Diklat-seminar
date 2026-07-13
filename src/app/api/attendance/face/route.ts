@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { registrations, attendance } from "@/lib/schema";
+import { registrations, attendance, certificates, seminars } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import { generateCertificateNumber } from "@/lib/certificate-number";
 
 // Public endpoint - NO AUTH REQUIRED
 // Used by the public presensi page for face recognition attendance
@@ -38,6 +39,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Semua peserta sudah hadir" }, { status: 400 });
     }
 
+    // Generate certificate number (auto-generate saat presensi)
+    let certResult = null;
+    try {
+      certResult = await generateCertificateNumber(notPresent.id, notPresent.seminarId);
+    } catch (certErr) {
+      console.warn("Certificate number generation skipped:", certErr);
+    }
+
     // Mark as present
     await db
       .update(registrations)
@@ -47,6 +56,26 @@ export async function POST(req: NextRequest) {
         presentMethod: "face",
       })
       .where(eq(registrations.id, notPresent.id));
+
+    // Ambil data seminar untuk title
+    const [seminarData] = await db
+      .select({ title: seminars.title })
+      .from(seminars)
+      .where(eq(seminars.id, notPresent.seminarId))
+      .limit(1);
+
+    // Simpan record ke tabel certificates jika nomor berhasil digenerate
+    if (certResult) {
+      await db.insert(certificates).values({
+        id: uuidv4(),
+        userId: notPresent.id,
+        title: seminarData?.title || "Sertifikat Seminar",
+        certificateNumber: certResult.code,
+        fileUrl: null,
+        generatedDate: new Date(),
+        isDeleted: false,
+      });
+    }
 
     // Also create attendance record
     await db.insert(attendance).values({
