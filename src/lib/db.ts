@@ -3,11 +3,11 @@ import postgres from "postgres";
 import * as schema from "./schema";
 
 const client = postgres({
-  host: "postgresql://neondb_owner:npg_6BfzbFru0cad@ep-odd-forest-aobh0k79-pooler.c-2.ap-southeast-1.aws.neon.tech/db-seminar?sslmode=require&channel_binding=require",
+  host: "ep-patient-paper-azhqn296-pooler.c-3.ap-southeast-1.aws.neon.tech",
   port: 5432,
-  database: "db-seminar",
+  database: "neondb",
   username: "neondb_owner",
-  password: "npg_6BfzbFru0cad",
+  password: "npg_JiCPEZO0ruF5",
   ssl: "require",
 });
 
