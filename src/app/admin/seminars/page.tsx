@@ -14,6 +14,7 @@ interface Seminar {
   maxParticipants: number;
   useQr: boolean;
   useFace: boolean;
+  useManual: boolean;
   isActive: boolean;
   isCompleted: boolean;
   isDeleted: boolean;
@@ -42,6 +43,7 @@ const emptyForm = {
   maxParticipants: "0",
   useQr: true,
   useFace: true,
+  useManual: true,
   isActive: true,
 };
 
@@ -238,6 +240,7 @@ export default function AdminSeminars() {
       maxParticipants: String(sem.maxParticipants || 0),
       useQr: sem.useQr,
       useFace: sem.useFace,
+      useManual: sem.useManual || false,
       isActive: sem.isActive,
     });
     setEditingId(sem.id);
@@ -477,8 +480,15 @@ export default function AdminSeminars() {
         </div>
         <button
           onClick={() => {
-            if (editingId) cancelEdit();
-            openCreateForm();
+            if (showForm) {
+              resetForm();
+              setShowForm(false);
+            } else if (editingId) {
+              cancelEdit();
+              openCreateForm();
+            } else {
+              openCreateForm();
+            }
           }}
           className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-200/50 text-sm"
         >
@@ -496,29 +506,30 @@ export default function AdminSeminars() {
         </div>
       )}
 
-      {/* Tab Navigation */}
-      <div className="flex gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
-        <button
-          onClick={() => setActiveTab("active")}
-          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-            activeTab === "active"
-              ? "bg-white text-slate-800 shadow-sm"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          📋 Seminar Aktif ({activeSeminars.length})
-        </button>
-        <button
-          onClick={() => setActiveTab("history")}
-          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-            activeTab === "history"
-              ? "bg-white text-slate-800 shadow-sm"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          🗂 Riwayat ({historySeminars.length})
-        </button>
-      </div>
+      {!showForm && (
+        <div className="flex gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
+          <button
+            onClick={() => setActiveTab("active")}
+            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+              activeTab === "active"
+                ? "bg-white text-slate-800 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            📋 Seminar Aktif ({activeSeminars.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+              activeTab === "history"
+                ? "bg-white text-slate-800 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            🗂 Riwayat ({historySeminars.length})
+          </button>
+        </div>
+      )}
 
       {/* Form create di atas */}
       {showForm && (
@@ -636,6 +647,16 @@ export default function AdminSeminars() {
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
+                  checked={form.useManual}
+                  onChange={(e) =>
+                    setForm({ ...form, useManual: e.target.checked })
+                  }
+                />
+                Daftar Hadir
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
                   checked={form.isActive}
                   onChange={(e) =>
                     setForm({ ...form, isActive: e.target.checked })
@@ -721,7 +742,7 @@ export default function AdminSeminars() {
         </div>
       )}
 
-      {loading ? (
+      {!showForm && (loading ? (
         <div className="text-center py-12">
           <div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
         </div>
@@ -895,6 +916,16 @@ export default function AdminSeminars() {
                           <label className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"
+                              checked={form.useManual}
+                              onChange={(e) =>
+                                setForm({ ...form, useManual: e.target.checked })
+                              }
+                            />
+                            Daftar Hadir
+                          </label>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
                               checked={form.isActive}
                               onChange={(e) =>
                                 setForm({ ...form, isActive: e.target.checked })
@@ -1036,6 +1067,7 @@ export default function AdminSeminars() {
                           <div><span className="font-medium text-slate-700">Kuota:</span> {sem.maxParticipants === 0 ? "Unlimited" : sem.maxParticipants}</div>
                           <div><span className="font-medium text-slate-700">QR Code:</span> {sem.useQr ? "Ya" : "Tidak"}</div>
                           <div><span className="font-medium text-slate-700">Face ID:</span> {sem.useFace ? "Ya" : "Tidak"}</div>
+                          <div><span className="font-medium text-slate-700">Daftar Hadir:</span> {sem.useManual ? "Ya" : "Tidak"}</div>
                           <div><span className="font-medium text-slate-700">Status:</span> 
                             {!sem.isActive && !sem.isDeleted && !sem.isCompleted && !hasEnded(sem) ? "Nonaktif" : 
                               sem.isDeleted ? "Terhapus" : 
@@ -1214,13 +1246,33 @@ export default function AdminSeminars() {
                         </div>
                       </div>
                     )}
+                    {/* Feature badges */}
+                    <div className="px-5 pb-4 pt-0">
+                      <div className="flex items-center gap-2">
+                        {sem.useFace && (
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
+                            Face Recognition
+                          </span>
+                        )}
+                        {sem.useQr && (
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                            QR Code
+                          </span>
+                        )}
+                        {sem.useManual && (
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700">
+                            Daftar Hadir
+                          </span>
+                        )}
+                      </div>
+                    </div>
                     </>
                   )}
                 </div>
               );
             })}
         </div>
-      )}
+      ))}
     </div>
   );
 }

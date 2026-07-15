@@ -54,6 +54,7 @@ export const seminars = pgTable("seminars", {
   maxParticipants: integer("max_participants").default(0),
   useQr: boolean("use_qr").notNull().default(true),
   useFace: boolean("use_face").notNull().default(true),
+  useManual: boolean("use_manual").notNull().default(false),
   presensiOpen: boolean("presensi_open").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   isCompleted: boolean("is_completed").notNull().default(false),

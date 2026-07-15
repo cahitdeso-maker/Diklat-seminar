@@ -13,6 +13,7 @@ interface Seminar {
   maxParticipants: number;
   useQr: boolean;
   useFace: boolean;
+  useManual: boolean;
   _count?: {
     registrations: number;
   };
@@ -84,9 +85,8 @@ export default function AttendanceDashboard() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {seminars.map((seminar) => (
-            <Link
+            <div
               key={seminar.id}
-              href={`/attendance/${seminar.id}`}
               className="bg-white rounded-2xl shadow-sm border border-slate-200 hover:shadow-lg hover:border-green-200 transition-all p-6"
             >
               <div className="flex items-start justify-between mb-4">
@@ -127,19 +127,42 @@ export default function AttendanceDashboard() {
                   <span>{seminar._count?.registrations || 0} peserta terdaftar</span>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2">
-                {seminar.useFace && (
-                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
-                    Face Recognition
-                  </span>
-                )}
-                {seminar.useQr && (
-                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
-                    QR Code
-                  </span>
-                )}
+              <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {seminar.useFace && (
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-700">
+                      Face Recognition
+                    </span>
+                  )}
+                  {seminar.useQr && (
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                      QR Code
+                    </span>
+                  )}
+                  {seminar.useManual && (
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700">
+                      Daftar Hadir
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/attendance/${seminar.id}`}
+                    className="flex-1 text-center px-3 py-2 bg-green-50 text-green-700 text-xs font-semibold rounded-xl hover:bg-green-100 transition-all"
+                  >
+                    Presensi (QR/Face)
+                  </Link>
+                  {seminar.useManual && (
+                    <Link
+                      href={`/presensi/manual/${seminar.id}`}
+                      className="flex-1 text-center px-3 py-2 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-xl hover:bg-emerald-100 transition-all"
+                    >
+                      Daftar Hadir
+                    </Link>
+                  )}
+                </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

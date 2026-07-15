@@ -1,0 +1,1 @@
+ALTER TABLE "seminars" ADD COLUMN "use_manual" boolean NOT NULL DEFAULT false;

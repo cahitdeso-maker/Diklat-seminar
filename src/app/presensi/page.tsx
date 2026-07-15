@@ -390,7 +390,7 @@ export default function PresensiPage() {
 
       <main className="max-w-lg mx-auto px-4 py-8">
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-slate-800">Presensi Peserta</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Presensi Peserta</h2>
           <p className="text-sm text-slate-500 mt-1">
             Scan QR Code atau verifikasi dengan Face ID
           </p>

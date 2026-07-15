@@ -19,24 +19,33 @@ function getSessionUser(request: Request) {
 // Helper: update isCompleted for seminars that have passed their end time
 async function updateCompletedStatus() {
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const all = await db
     .select()
     .from(seminars)
     .where(eq(seminars.isDeleted, false));
     for (const sem of all) {
       if (!sem.date || sem.isCompleted) continue;
-      // sem.date is a string in YYYY-MM-DD format from PostgreSQL
       const dateStr = String(sem.date);
-      const seminarDate = new Date(dateStr + "T00:00:00");
-      
-      // Only auto-complete if the seminar date is BEFORE today (past date)
-      // Seminars happening today remain active regardless of end time
-      if (seminarDate < today) {
-        await db
-          .update(seminars)
-          .set({ isCompleted: true })
-          .where(eq(seminars.id, sem.id));
+
+      // Jika seminar punya endTime, gunakan date+endTime untuk menentukan selesai
+      if (sem.endTime) {
+        const seminarEnd = new Date(dateStr + "T" + sem.endTime + ":00");
+        if (seminarEnd < now) {
+          await db
+            .update(seminars)
+            .set({ isCompleted: true })
+            .where(eq(seminars.id, sem.id));
+        }
+      } else {
+        // Tanpa endTime, cukup cek tanggal
+        const seminarDate = new Date(dateStr + "T00:00:00");
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (seminarDate < today) {
+          await db
+            .update(seminars)
+            .set({ isCompleted: true })
+            .where(eq(seminars.id, sem.id));
+        }
       }
     }
 }
@@ -107,6 +116,7 @@ export async function POST(request: Request) {
       maxParticipants,
       useQr,
       useFace,
+      useManual,
     } = body;
 
     if (!title || !date) {
@@ -128,6 +138,7 @@ export async function POST(request: Request) {
       maxParticipants: maxParticipants ? Number(maxParticipants) : 0,
       useQr: useQr !== false,
       useFace: useFace !== false,
+      useManual: useManual === true,
       isActive: true,
       isDeleted: false,
     });
@@ -193,6 +204,7 @@ export async function PATCH(request: Request) {
       "maxParticipants",
       "useQr",
       "useFace",
+      "useManual",
       "isActive",
       "presensiOpen",
       "isDeleted",
