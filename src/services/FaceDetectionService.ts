@@ -1,28 +1,24 @@
 /**
  * FaceDetectionService
  *
- * Uses MediaPipe Face Landmarker for face detection, landmark estimation,
- * and face bounding box extraction.
- *
- * This service is ONLY for detection - NOT for recognition.
- * Recognition is handled by FaceRecognitionService using cropped face images.
+ * Uses face-api.js (tinyFaceDetector + faceLandmark68Net) for face detection
+ * and landmark estimation.
  *
  * Features:
  * - Singleton model loading (shared loadingPromise prevents duplicate loads)
- * - GPU→CPU fallback automatically
+ * - Models loaded from local /models/ directory (no CDN dependency)
  * - Video readiness validation before detection
- * - try/catch around detectForVideo() with real error logging
+ * - try/catch around detection with safe error handling
  * - Reusable canvas instances for performance
- * - Debug logging (removed in production)
+ *
+ * face-api.js tinyFaceDetector is lightweight, real-time, and runs fully client-side.
  */
-import { FaceLandmarker, FilesetResolver, type FaceLandmarkerResult } from "@mediapipe/tasks-vision";
 
-let faceLandmarker: FaceLandmarker | null = null;
 let modelsLoaded = false;
 let modelLoadPromise: Promise<void> | null = null;
+let loadAttempted = false;
 
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const MODEL_URL = "/models";
 
 export interface FaceDetectionResult {
   detected: boolean;
@@ -30,7 +26,6 @@ export interface FaceDetectionResult {
   landmarks?: Float32Array[];
   faceRect?: { x: number; y: number; width: number; height: number };
   faceScore?: number;
-  landmarksRaw?: FaceLandmarkerResult;
 }
 
 // Reusable canvas for cropping (avoids allocation per frame)
@@ -52,63 +47,38 @@ function debugLog(...args: unknown[]): void {
 }
 
 /**
- * Load MediaPipe Face Landmarker model.
+ * Load face-api.js models (tinyFaceDetector + faceLandmark68Net) from local /models/ directory.
  * Uses singleton pattern - only loads once even if called multiple times concurrently.
- * Automatically falls back from GPU to CPU if GPU is unavailable.
  */
 export async function loadFaceLandmarkerModel(): Promise<void> {
-  if (modelsLoaded && faceLandmarker) return;
-  if (modelLoadPromise) return modelLoadPromise;
+  if (modelsLoaded) return;
+  if (loadAttempted && modelLoadPromise) return modelLoadPromise;
+  if (loadAttempted && !modelLoadPromise) {
+    throw new Error("Model face detection gagal dimuat sebelumnya. Refresh halaman untuk mencoba lagi.");
+  }
+
+  loadAttempted = true;
 
   modelLoadPromise = (async () => {
     try {
-      debugLog("loading MediaPipe model...");
+      debugLog("loading face-api.js models from local /models/...");
 
-      const filesetResolver = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-      );
+      // Dynamically import face-api.js
+      const faceapi = await import("@vladmandic/face-api");
 
-      // Try GPU first, fall back to CPU
-      try {
-        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-          baseOptions: {
-            modelAssetPath: MODEL_URL,
-            delegate: "GPU",
-          },
-          runningMode: "VIDEO",
-          numFaces: 5,
-          minFaceDetectionConfidence: 0.5,
-          minFacePresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-          outputFaceBlendshapes: true,
-          outputFacialTransformationMatrixes: true,
-        });
-        debugLog("MediaPipe loaded (GPU)");
-      } catch (gpuError) {
-        debugLog("GPU delegate failed, falling back to CPU:", gpuError);
-        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
-          baseOptions: {
-            modelAssetPath: MODEL_URL,
-            delegate: "CPU",
-          },
-          runningMode: "VIDEO",
-          numFaces: 5,
-          minFaceDetectionConfidence: 0.5,
-          minFacePresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-          outputFaceBlendshapes: true,
-          outputFacialTransformationMatrixes: true,
-        });
-        debugLog("MediaPipe loaded (CPU fallback)");
-      }
+      // Load models in parallel
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      ]);
 
       modelsLoaded = true;
-      debugLog("MediaPipe model loaded successfully");
+      debugLog("face-api.js models loaded successfully");
     } catch (error) {
       modelsLoaded = false;
-      faceLandmarker = null;
-      modelLoadPromise = null; // Allow retry on next call
-      console.error("[FaceDetection] Failed to load MediaPipe Face Landmarker:", error);
+      modelLoadPromise = null;
+      loadAttempted = false; // Allow retry on next call
+      console.error("[FaceDetection] Failed to load face-api.js models:", error);
       throw new Error("Gagal memuat model face detection");
     }
   })();
@@ -128,14 +98,14 @@ function isVideoReady(video: HTMLVideoElement): boolean {
 }
 
 /**
- * Detect faces in a video frame using MediaPipe.
- * Returns face landmarks, bounding box, and raw result.
+ * Detect faces in a video frame using face-api.js tinyFaceDetector.
+ * Returns face landmarks (68-point), bounding box, and face count.
  *
  * Safe to call even if video is not ready - returns { detected: false } gracefully.
  */
 export async function detectFaces(
   video: HTMLVideoElement,
-  timestamp: number
+  _timestamp: number
 ): Promise<FaceDetectionResult> {
   // Validate video readiness
   if (!isVideoReady(video)) {
@@ -149,45 +119,50 @@ export async function detectFaces(
 
   await loadFaceLandmarkerModel();
 
-  if (!faceLandmarker) {
+  if (!modelsLoaded) {
     debugLog("detection skipped - model not loaded");
     return { detected: false, faceCount: 0 };
   }
 
   try {
-    const result = faceLandmarker.detectForVideo(video, timestamp);
+    const faceapi = await import("@vladmandic/face-api");
 
-    if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
+    // Use tinyFaceDetector for fast, lightweight detection
+    const options = new faceapi.TinyFaceDetectorOptions({
+      inputSize: 224,
+      scoreThreshold: 0.5,
+    });
+
+    const result = await faceapi
+      .detectSingleFace(video, options)
+      .withFaceLandmarks();
+
+    if (!result) {
       return { detected: false, faceCount: 0 };
     }
 
-    const faceCount = result.faceLandmarks.length;
-    const landmarks = result.faceLandmarks.map((lm) => {
-      const arr = new Float32Array(lm.length * 3);
-      for (let i = 0; i < lm.length; i++) {
-        arr[i * 3] = lm[i].x;
-        arr[i * 3 + 1] = lm[i].y;
-        arr[i * 3 + 2] = lm[i].z;
-      }
-      return arr;
-    });
+    const faceCount = 1;
+    const box = result.detection.box;
+    const landmarks = result.landmarks;
 
-    // Get face bounding box from first face
-    const firstFace = result.faceLandmarks[0];
-    let minX = 1, minY = 1, maxX = 0, maxY = 0;
-    for (let i = 0; i < firstFace.length; i++) {
-      const p = firstFace[i];
-      if (p.x < minX) minX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y > maxY) maxY = p.y;
+    // Convert landmarks to Float32Array (compatible with existing code)
+    const positions = landmarks.positions;
+    const landmarkArray = new Float32Array(positions.length * 3);
+    for (let i = 0; i < positions.length; i++) {
+      landmarkArray[i * 3] = positions[i].x;
+      landmarkArray[i * 3 + 1] = positions[i].y;
+      landmarkArray[i * 3 + 2] = 0;
     }
 
+    // Normalize face rect to 0-1 range
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+
     const faceRect = {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY,
+      x: box.x / vw,
+      y: box.y / vh,
+      width: box.width / vw,
+      height: box.height / vh,
     };
 
     debugLog("face detected", { faceCount, faceRect });
@@ -195,14 +170,13 @@ export async function detectFaces(
     return {
       detected: true,
       faceCount,
-      landmarks,
+      landmarks: [landmarkArray],
       faceRect,
-      faceScore: 0.9,
-      landmarksRaw: result,
+      faceScore: result.detection.score,
     };
   } catch (error) {
     // Log the real error and return safe default - never crash the attendance process
-    console.error("[FaceDetection] detectForVideo() error:", error);
+    console.error("[FaceDetection] detection error:", error);
     debugLog("detection error - skipping frame");
     return { detected: false, faceCount: 0 };
   }
@@ -264,5 +238,5 @@ export function cropFace(
  * Check if the model is loaded.
  */
 export function isModelLoaded(): boolean {
-  return modelsLoaded && faceLandmarker !== null;
+  return modelsLoaded;
 }

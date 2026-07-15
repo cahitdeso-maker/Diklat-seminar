@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { registrations, attendance, certificates, seminars } from "@/lib/schema";
+import { registrations, attendance, certificates, seminars, faceEmbeddings } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { SimilarityService } from "@/services/SimilarityService";
 import { generateCertificateNumber } from "@/lib/certificate-number";
 
 /**
- * Face Verify API - Compares captured face embedding with stored embeddings.
+ * Face Verify API - Compares captured face descriptor with stored descriptors.
  *
- * This endpoint receives a face embedding from the client (generated via MobileFaceNet ONNX),
- * fetches all registrations with stored embeddings, and computes cosine similarity
- * to find the best match.
+ * This endpoint receives a face descriptor (128D array from face-api.js FaceNet),
+ * fetches all registrations with stored descriptors (from face_embeddings table),
+ * and computes Euclidean distance to find the best match.
  *
- * Threshold: >= 0.90 (90%) is considered the same person.
+ * Threshold: distance < 0.5 is considered the same person.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -26,10 +26,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get all registrations that have face embeddings and haven't checked in
-    const regs = await db
-      .select()
-      .from(registrations)
+    // Get all registrations that haven't checked in, along with their face embeddings
+    const results = await db
+      .select({
+        registration: registrations,
+        embeddingRecord: faceEmbeddings,
+      })
+      .from(faceEmbeddings)
+      .innerJoin(registrations, eq(faceEmbeddings.registrationId, registrations.id))
       .where(
         and(
           eq(registrations.isPresent, false),
@@ -37,35 +41,30 @@ export async function POST(req: NextRequest) {
         )
       );
 
-    if (regs.length === 0) {
-      return NextResponse.json(
-        { error: "Tidak ada peserta yang belum hadir" },
-        { status: 404 }
-      );
-    }
-
-    // Filter registrations that have face embeddings
-    const withEmbedding = regs.filter((r) => r.faceEmbedding);
-
-    if (withEmbedding.length === 0) {
+    if (results.length === 0) {
       return NextResponse.json(
         { error: "Tidak ada peserta dengan data Face ID. Silakan daftar dengan Face ID terlebih dahulu." },
         { status: 404 }
       );
     }
 
-    // Compute cosine similarity with all stored embeddings
-    let bestMatch: { registration: typeof withEmbedding[0]; similarity: number } | null = null;
+    // Compare captured embedding against all stored embeddings using Euclidean distance
+    let bestMatch: {
+      registration: typeof results[0]['registration'];
+      distance: number;
+      similarity: number;
+      match: boolean;
+    } | null = null;
 
-    for (const reg of withEmbedding) {
+    for (const row of results) {
       try {
-        const storedEmbedding = JSON.parse(reg.faceEmbedding!);
+        const storedEmbedding = JSON.parse(row.embeddingRecord.descriptor);
         if (!Array.isArray(storedEmbedding)) continue;
 
-        const { similarity } = SimilarityService.compare(storedEmbedding, embedding);
+        const result = SimilarityService.compare(storedEmbedding, embedding);
 
-        if (!bestMatch || similarity > bestMatch.similarity) {
-          bestMatch = { registration: reg, similarity };
+        if (!bestMatch || result.distance < bestMatch.distance) {
+          bestMatch = { registration: row.registration, ...result };
         }
       } catch {
         // Skip invalid embeddings
@@ -73,16 +72,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check if best match meets threshold
-    const THRESHOLD = 0.90;
-    const bestSimilarity = bestMatch?.similarity ?? 0;
-    if (!bestMatch || bestSimilarity < THRESHOLD) {
-      const topScore = Math.round(bestSimilarity * 100);
+    // Check if any match was found
+    const THRESHOLD = SimilarityService.getDefaultThreshold();
+    if (!bestMatch) {
       return NextResponse.json(
         {
           match: false,
-          similarity: bestSimilarity,
-          error: `Wajah tidak cocok (similarity: ${topScore}%, minimal: ${THRESHOLD * 100}%)`,
+          error: "Tidak ada embedding wajah yang cocok ditemukan",
+        },
+        { status: 200 }
+      );
+    }
+
+    // Check if best match meets Euclidean distance threshold (< 0.5 = match)
+    if (!bestMatch.match) {
+      return NextResponse.json(
+        {
+          match: false,
+          distance: bestMatch.distance,
+          similarity: bestMatch.similarity,
+          error: `Wajah tidak cocok (jarak: ${bestMatch.distance.toFixed(2)}, minimal jarak: ${THRESHOLD})`,
         },
         { status: 200 }
       );

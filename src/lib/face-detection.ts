@@ -3,12 +3,12 @@
  *
  * This file re-exports from the new modular services for backward compatibility.
  *
- * New architecture:
- * - FaceDetectionService: MediaPipe face detection
+ * New architecture (face-api.js):
+ * - FaceDetectionService: face-api.js tinyFaceDetector + faceLandmark68Net
  * - FaceQualityService: Face quality validation
- * - FaceRecognitionService: MobileFaceNet ONNX embedding generation
+ * - FaceRecognitionService: face-api.js faceRecognitionNet (128D FaceNet descriptor)
  * - EmbeddingService: Embedding normalization and serialization
- * - SimilarityService: Cosine similarity comparison
+ * - SimilarityService: Euclidean distance comparison (threshold 0.5)
  */
 
 // Re-export from FaceDetectionService

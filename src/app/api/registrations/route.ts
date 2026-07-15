@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { registrations, seminars } from "@/lib/schema";
+import { registrations, seminars, faceEmbeddings } from "@/lib/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { generateId } from "@/lib/utils";
-import { saveBase64File } from "@/lib/save-file";
 import { generateCertificateNumber, updateCertificateNumber, validateCertificateNumber } from "@/lib/certificate-number";
 
 // Generate QR code string
@@ -99,7 +98,6 @@ export async function POST(request: Request) {
       phoneNumber,
       institution,
       profession,
-      faceData,
     } = body;
 
     if (!seminarId || !fullName) {
@@ -153,17 +151,7 @@ export async function POST(request: Request) {
     const id = generateId();
     const qrCode = generateQrCode();
 
-    // Simpan faceData jika ada
-    let faceFilePath: string | null = null;
-    if (faceData && faceData.startsWith("data:")) {
-      try {
-        faceFilePath = await saveBase64File(faceData, id, "face");
-      } catch (err) {
-        console.error("Failed to save face photo:", err);
-      }
-    }
-
-    // Parse faceEmbedding from JSON string if provided
+    // Parse faceEmbedding from JSON string if provided and store in face_embeddings table
     let faceEmbeddingParsed: string | null = null;
     if (body.faceEmbedding && Array.isArray(body.faceEmbedding)) {
       faceEmbeddingParsed = JSON.stringify(body.faceEmbedding);
@@ -177,14 +165,20 @@ export async function POST(request: Request) {
       phoneNumber: phoneNumber || null,
       institution: institution || null,
       profession: profession || null,
-      faceData: faceFilePath,
-      faceEmbedding: faceEmbeddingParsed,
-      faceQuality: body.faceQuality || null,
       qrCode,
       isPresent: false,
       certificateSent: false,
       isDeleted: false,
     });
+
+    // Store face descriptor in face_embeddings table (if provided)
+    if (faceEmbeddingParsed) {
+      await db.insert(faceEmbeddings).values({
+        id: generateId(),
+        registrationId: id,
+        descriptor: faceEmbeddingParsed,
+      });
+    }
 
     return NextResponse.json({
       success: true,

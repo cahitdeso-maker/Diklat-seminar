@@ -2,7 +2,7 @@
  * EmbeddingService
  *
  * Handles embedding normalization, serialization, and deserialization.
- * Embeddings are 128D or 512D vectors representing face identity.
+ * Embeddings are 128D vectors (FaceNet-based) representing face identity.
  */
 export class EmbeddingService {
   /**
@@ -44,8 +44,7 @@ export class EmbeddingService {
 
   /**
    * Validate embedding dimensions.
-   * MobileFaceNet produces 128D embeddings.
-   * ArcFace can produce 128D or 512D.
+   * FaceNet (face-api.js) produces 128D embeddings.
    */
   static validate(embedding: number[], expectedDim: number = 128): boolean {
     return (
@@ -58,13 +57,13 @@ export class EmbeddingService {
   /**
    * Get embedding dimension from model type.
    */
-  static getDimension(modelType: "mobilefacenet" | "arcface" | "facenet"): number {
+  static getDimension(modelType: "facenet" | "arcface" | "mobilefacenet"): number {
     switch (modelType) {
-      case "mobilefacenet":
+      case "facenet":
         return 128;
       case "arcface":
         return 512;
-      case "facenet":
+      case "mobilefacenet":
         return 128;
       default:
         return 128;

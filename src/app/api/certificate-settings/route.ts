@@ -62,7 +62,7 @@ export async function GET() {
     const lastCertificateNumber = lastResult?.maxVal ?? 0;
 
     // Hitung next number berdasarkan resetOption
-    let nextNumber = 0;
+    let computedNextNumber = 0;
     if (config.resetOption === "per_tahun") {
       const [res] = await db
         .select({ maxVal: sql<number>`COALESCE(MAX(${certificateNumberSettings.certificateNumber}), 0)` })
@@ -75,19 +75,22 @@ export async function GET() {
           ),
         )
         .limit(1);
-      nextNumber = Math.max(res?.maxVal ?? 0, (config.nextCertificateNumber || 1) - 1) + 1;
+      computedNextNumber = Math.max(res?.maxVal ?? 0, (config.nextCertificateNumber || 1) - 1) + 1;
     } else if (config.resetOption === "never") {
-      nextNumber = Math.max(lastCertificateNumber, (config.nextCertificateNumber || 1) - 1) + 1;
+      computedNextNumber = Math.max(lastCertificateNumber, (config.nextCertificateNumber || 1) - 1) + 1;
     } else {
       // per_seminar - default to global
-      nextNumber = Math.max(lastCertificateNumber, (config.nextCertificateNumber || 1) - 1) + 1;
+      computedNextNumber = Math.max(lastCertificateNumber, (config.nextCertificateNumber || 1) - 1) + 1;
     }
 
     // Kirim data config + computed values
+    // nextCertificateNumber = nilai konfigurasi dari admin (bisa lebih kecil dari last)
+    // computedNextNumber = nomor yang sebenarnya akan dipakai (selalu >= MAX last)
     return NextResponse.json({
       ...config,
-      nextCertificateNumber: nextNumber,
-      lastCertificateNumber: lastCertificateNumber,
+      nextCertificateNumber: config.nextCertificateNumber ?? computedNextNumber,
+      computedNextNumber,
+      lastCertificateNumber,
       currentNumber: 0, // backward compatibility
     });
   } catch (error) {
@@ -164,7 +167,7 @@ export async function PUT(request: Request) {
       .where(eq(certificateNumberSettings.id, existing.id))
       .limit(1);
 
-    // Hitung last dan next number
+    // Hitung last dan computed next number
     const [lastResult] = await db
       .select({ maxVal: sql<number>`COALESCE(MAX(${certificateNumberSettings.certificateNumber}), 0)` })
       .from(certificateNumberSettings)
@@ -178,7 +181,7 @@ export async function PUT(request: Request) {
 
     const lastCertificateNumber = lastResult?.maxVal ?? 0;
 
-    let nextNumber = 0;
+    let computedNextNumber = 0;
     if (updated.resetOption === "per_tahun") {
       const [res] = await db
         .select({ maxVal: sql<number>`COALESCE(MAX(${certificateNumberSettings.certificateNumber}), 0)` })
@@ -191,15 +194,17 @@ export async function PUT(request: Request) {
           ),
         )
         .limit(1);
-      nextNumber = Math.max(res?.maxVal ?? 0, (updated.nextCertificateNumber || 1) - 1) + 1;
+      computedNextNumber = Math.max(res?.maxVal ?? 0, (updated.nextCertificateNumber || 1) - 1) + 1;
     } else {
-      nextNumber = Math.max(lastCertificateNumber, (updated.nextCertificateNumber || 1) - 1) + 1;
+      computedNextNumber = Math.max(lastCertificateNumber, (updated.nextCertificateNumber || 1) - 1) + 1;
     }
 
+    // Kembalikan config value (bisa lebih kecil dari last) + computed value
     return NextResponse.json({
       ...updated,
-      nextCertificateNumber: nextNumber,
-      lastCertificateNumber: lastCertificateNumber,
+      nextCertificateNumber: updated.nextCertificateNumber ?? computedNextNumber,
+      computedNextNumber,
+      lastCertificateNumber,
       currentNumber: 0,
     });
   } catch (error) {

@@ -5,11 +5,11 @@ export default {
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    host: "aws-1-ap-southeast-1.pooler.supabase.com",
+    host: "192.168.12.81",
     port: 5432,
-    user: "postgres.bdzqkxscwgdbnneuhjjh",
+    user: "diklat",
     password: "pkugombong21",
-    database: "postgres",
+    database: "seminar",
     ssl: "require",
   },
 } satisfies Config;

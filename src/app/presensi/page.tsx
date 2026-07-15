@@ -252,47 +252,18 @@ export default function PresensiPage() {
     debugLog("starting face verification");
 
     try {
-      // Get face detection for cropping
-      const timestamp = performance.now();
-      const result = await detectFaces(video, timestamp);
+      // Generate 128D face descriptor directly from video
+      // face-api.js does face detection + descriptor extraction in one call
+      setFaceStatus("Menghasilkan descriptor wajah...");
+      const recognitionResult = await generateEmbedding(video);
 
-      if (!result.detected || !result.faceRect) {
-        setError("Wajah tidak terdeteksi");
-        setVerifying(false);
-        return;
-      }
-
-      // Crop face from video frame using bounding box
-      setFaceStatus("Mengambil gambar wajah...");
-      const croppedFace = cropFace(video, result.faceRect);
-      debugLog("face cropped for recognition", {
-        width: croppedFace.width,
-        height: croppedFace.height,
-      });
-
-      if (croppedFace.width === 0 || croppedFace.height === 0) {
-        setError("Gagal mengambil gambar wajah. Silakan coba lagi.");
-        setVerifying(false);
-        return;
-      }
-
-      // Generate embedding from cropped face image (ONNX model)
-      setFaceStatus("Menghasilkan embedding wajah...");
-      const recognitionResult = await generateEmbedding(croppedFace);
-
-      if (!recognitionResult.success || recognitionResult.embedding.length === 0) {
-        setError("Gagal menghasilkan embedding wajah. Silakan coba lagi.");
-        setVerifying(false);
-        return;
-      }
-
-      debugLog("embedding generated", {
+      debugLog("face descriptor generated", {
         dim: recognitionResult.embedding.length,
         method: recognitionResult.method,
         time: `${recognitionResult.inferenceTime}ms`,
       });
 
-      // Normalize embedding
+      // Normalize descriptor
       const capturedEmbedding = EmbeddingService.normalize(recognitionResult.embedding);
 
       // Fetch all registrations with face embeddings for this seminar

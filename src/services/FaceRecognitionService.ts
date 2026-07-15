@@ -13,22 +13,18 @@
  * If the ONNX model is not available, the system cannot perform recognition.
  * (Landmark-based embedding has been removed - it was not accurate enough for production.)
  */
-import * as ort from "onnxruntime-web";
-
-// ArcFace ONNX model path
-const MODEL_URL = "/models/arcface.onnx";
-
-let session: ort.InferenceSession | null = null;
+let onnxAvailable = false;
+let modelsLoaded = false;
 let isLoading = false;
 let loadPromise: Promise<void> | null = null;
-let currentProvider: string = "none";
-let onnxAvailable = false;
+
+const MODEL_URL = "/models";
 
 export interface RecognitionResult {
   success: boolean;
   embedding: number[];
   inferenceTime: number;
-  method: "onnx";
+  method: "facenet";
 }
 
 function debugLog(...args: unknown[]): void {
@@ -38,75 +34,36 @@ function debugLog(...args: unknown[]): void {
 }
 
 /**
- * Try to create an ONNX session from a given URL.
- */
-async function tryCreateSession(
-  modelUrl: string,
-  executionProvider: "webgl" | "wasm"
-): Promise<ort.InferenceSession | null> {
-  try {
-    const sess = await ort.InferenceSession.create(modelUrl, {
-      executionProviders: [executionProvider],
-      graphOptimizationLevel: "all",
-    });
-    return sess;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Load the ArcFace ONNX model.
- * If the model file is not available, recognition will not be possible.
+ * Load face-api.js faceRecognitionNet model from local /models/ directory.
  * Uses singleton pattern - only loads once.
  */
 export async function loadRecognitionModel(): Promise<void> {
-  if (session) return;
+  if (modelsLoaded) return;
   if (isLoading && loadPromise) return loadPromise;
 
   isLoading = true;
 
   loadPromise = (async () => {
     try {
-      let executionProvider: "webgl" | "wasm" = "webgl";
-      const canvas = document.createElement("canvas");
-      const gl = canvas.getContext("webgl");
-      if (!gl) {
-        executionProvider = "wasm";
-      }
+      debugLog("loading face-api.js faceRecognitionNet from local /models/...");
 
-      // Try to load ArcFace ONNX model
-      session = await tryCreateSession(MODEL_URL, executionProvider);
-      if (session) {
-        currentProvider = executionProvider;
-        onnxAvailable = true;
-        debugLog(`ArcFace ONNX model loaded (${executionProvider})`);
-        isLoading = false;
-        return;
-      }
+      // Dynamically import face-api.js
+      const faceapi = await import("@vladmandic/face-api");
 
-      // Try CPU fallback
-      if (executionProvider === "webgl") {
-        executionProvider = "wasm";
-        session = await tryCreateSession(MODEL_URL, executionProvider);
-        if (session) {
-          currentProvider = executionProvider;
-          onnxAvailable = true;
-          debugLog("ArcFace ONNX model loaded (CPU/WASM)");
-          isLoading = false;
-          return;
-        }
-      }
+      // Load all required models
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+      ]);
 
-      // ONNX model not available
-      console.warn(
-        "[FaceRecognition] ONNX model not available at", MODEL_URL,
-        ". Recognition will not be possible. Download model to public/models/arcface.onnx"
-      );
-      onnxAvailable = false;
+      modelsLoaded = true;
+      onnxAvailable = true;
+      debugLog("face-api.js recognition model loaded successfully");
     } catch (error) {
-      console.error("[FaceRecognition] Failed to load ONNX model:", error);
+      console.error("[FaceRecognition] Failed to load face-api.js models:", error);
       onnxAvailable = false;
+      modelsLoaded = false;
     }
 
     isLoading = false;
@@ -116,111 +73,67 @@ export async function loadRecognitionModel(): Promise<void> {
 }
 
 /**
- * Generate a face embedding from a cropped face canvas.
- * This is the ONLY way to generate embeddings - landmarks are NOT used for recognition.
+ * Generate a face descriptor (128-dimension) from an input element.
+ * Uses face-api.js tinyFaceDetector + faceLandmark68Net + faceRecognitionNet.
  *
- * @param croppedFace - Canvas element containing the cropped face from FaceDetectionService.cropFace()
- * @returns RecognitionResult with embedding and inference time
+ * @param input - Video, Canvas, or Image element containing the face
+ * @returns RecognitionResult with descriptor and inference time
  */
 export async function generateEmbedding(
-  croppedFace: HTMLCanvasElement
+  input: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement
 ): Promise<RecognitionResult> {
   await loadRecognitionModel();
 
-  if (!session || !onnxAvailable) {
+  if (!modelsLoaded || !onnxAvailable) {
     throw new Error(
       "Model pengenalan wajah tidak tersedia. " +
-      "Silakan hubungi administrator untuk mengunduh model ke /models/arcface.onnx"
+      "Silakan refresh halaman untuk memuat ulang model."
     );
   }
 
   const startTime = performance.now();
 
-  // Preprocess face image
-  const inputTensor = preprocessFace(croppedFace);
+  try {
+    const faceapi = await import("@vladmandic/face-api");
 
-  // Create ONNX tensor
-  const tensor = new ort.Tensor("float32", inputTensor, [1, 3, 112, 112]);
+    const options = new faceapi.TinyFaceDetectorOptions({
+      inputSize: 224,
+      scoreThreshold: 0.5,
+    });
 
-  // Run inference
-  const feeds: Record<string, ort.Tensor> = {};
-  const inputNames = session.inputNames;
-  feeds[inputNames[0]] = tensor;
+    const result = await faceapi
+      .detectSingleFace(input, options)
+      .withFaceLandmarks()
+      .withFaceDescriptor();
 
-  const results = await session.run(feeds);
-
-  // Get output embedding
-  const outputName = session.outputNames[0];
-  const outputTensor = results[outputName];
-  const outputData = outputTensor.data as Float32Array;
-
-  // Convert to number array
-  const embedding = Array.from(outputData);
-
-  const inferenceTime = Math.round(performance.now() - startTime);
-
-  debugLog("embedding generated", {
-    dim: embedding.length,
-    inferenceTime: `${inferenceTime}ms`,
-  });
-
-  return {
-    success: true,
-    embedding,
-    inferenceTime,
-    method: "onnx",
-  };
-}
-
-/**
- * Preprocess a face image for the recognition model.
- * Steps:
- * 1. Resize to 112x112 (ArcFace input size)
- * 2. Convert to RGB
- * 3. Normalize pixels to [-1, 1]
- * 4. Return as Float32Array in NCHW format
- */
-function preprocessFace(
-  imageSource: HTMLCanvasElement
-): Float32Array {
-  const inputSize = 112;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = inputSize;
-  canvas.height = inputSize;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Gagal menginisialisasi canvas preprocessing");
-
-  ctx.drawImage(imageSource, 0, 0, inputSize, inputSize);
-
-  const imageData = ctx.getImageData(0, 0, inputSize, inputSize);
-  const pixels = imageData.data;
-
-  const float32Data = new Float32Array(1 * 3 * inputSize * inputSize);
-
-  for (let y = 0; y < inputSize; y++) {
-    for (let x = 0; x < inputSize; x++) {
-      const pixelIndex = (y * inputSize + x) * 4;
-      const r = pixels[pixelIndex] / 255.0;
-      const g = pixels[pixelIndex + 1] / 255.0;
-      const b = pixels[pixelIndex + 2] / 255.0;
-
-      const chwIndexR = 0 * inputSize * inputSize + y * inputSize + x;
-      const chwIndexG = 1 * inputSize * inputSize + y * inputSize + x;
-      const chwIndexB = 2 * inputSize * inputSize + y * inputSize + x;
-
-      float32Data[chwIndexR] = (r - 0.5) / 0.5;
-      float32Data[chwIndexG] = (g - 0.5) / 0.5;
-      float32Data[chwIndexB] = (b - 0.5) / 0.5;
+    if (!result) {
+      throw new Error("Wajah tidak terdeteksi pada input");
     }
-  }
 
-  return float32Data;
+    // Get 128D face descriptor
+    const descriptor = Array.from(result.descriptor);
+
+    const inferenceTime = Math.round(performance.now() - startTime);
+
+    debugLog("face descriptor generated", {
+      dim: descriptor.length,
+      inferenceTime: `${inferenceTime}ms`,
+    });
+
+    return {
+      success: true,
+      embedding: descriptor,
+      inferenceTime,
+      method: "facenet",
+    };
+  } catch (error) {
+    debugLog("descriptor generation failed:", error);
+    throw error;
+  }
 }
 
 /**
- * Generate embedding from a base64 data URL.
- * Requires ONNX model to be available.
+ * Generate a face descriptor from a base64 data URL.
  */
 export async function generateEmbeddingFromDataUrl(
   dataUrl: string
@@ -251,22 +164,22 @@ export async function generateEmbeddingFromDataUrl(
 }
 
 /**
- * Check if the ONNX recognition model is loaded.
+ * Check if the face-api.js recognition model is loaded.
  */
 export function isRecognitionModelLoaded(): boolean {
-  return session !== null && onnxAvailable;
+  return modelsLoaded;
 }
 
 /**
- * Check if ONNX model is available.
+ * Check if recognition is available.
  */
 export function isOnnxAvailable(): boolean {
   return onnxAvailable;
 }
 
 /**
- * Get the current execution provider (webgl, wasm, or none).
+ * Get the current execution provider (facenet or none).
  */
 export function getExecutionProvider(): string {
-  return currentProvider;
+  return modelsLoaded ? "facenet" : "none";
 }

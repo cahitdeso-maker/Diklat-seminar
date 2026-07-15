@@ -43,6 +43,11 @@ export class FaceLivenessService {
    * Check liveness from face landmarks.
    * Returns liveness status and guidance messages.
    * Safe to call with any landmark array - bounds-checked internally.
+   *
+   * Uses face-api.js 68-point landmark convention:
+   * - Left eye: indices 37-42 (top=37, bottom=41)
+   * - Right eye: indices 43-48 (top=44, bottom=46)
+   * - Nose tip: index 30
    */
   checkLiveness(landmarks: Float32Array): {
     passed: boolean;
@@ -53,8 +58,8 @@ export class FaceLivenessService {
   } {
     const len = landmarks.length / 3;
 
-    // If not enough landmarks, return safe default
-    if (len < 400) {
+    // Face-api.js uses 68-point landmarks
+    if (len < 68) {
       return {
         passed: false,
         progress: 0,
@@ -64,17 +69,22 @@ export class FaceLivenessService {
       };
     }
 
-    // Extract key landmarks with bounds checking
-    const leftEyeTop = this.getLandmark(landmarks, 159, 1);
-    const leftEyeBottom = this.getLandmark(landmarks, 145, 1);
-    const rightEyeTop = this.getLandmark(landmarks, 386, 1);
-    const rightEyeBottom = this.getLandmark(landmarks, 374, 1);
-    const noseTipX = this.getLandmark(landmarks, 1, 0);
-    const noseTipY = this.getLandmark(landmarks, 1, 1);
+    // Extract key landmarks with bounds checking (68-point face-api.js convention)
+    // Left eye: top=37, bottom=41
+    const leftEyeTop = this.getLandmark(landmarks, 37, 1);
+    const leftEyeBottom = this.getLandmark(landmarks, 41, 1);
+    // Right eye: top=44, bottom=46
+    const rightEyeTop = this.getLandmark(landmarks, 44, 1);
+    const rightEyeBottom = this.getLandmark(landmarks, 46, 1);
+    // Nose tip: index 30
+    const noseTipX = this.getLandmark(landmarks, 30, 0);
+    const noseTipY = this.getLandmark(landmarks, 30, 1);
 
-    // Check blink
-    const leftEyeOpen = Math.abs(leftEyeTop - leftEyeBottom) > 0.015;
-    const rightEyeOpen = Math.abs(rightEyeTop - rightEyeBottom) > 0.015;
+    // Check blink - use pixel-space coordinates (face-api.js returns pixel values)
+    // For a 480p video, eye opening is typically 5-10 pixels
+    const eyeBlinkThreshold = 8; // pixels
+    const leftEyeOpen = Math.abs(leftEyeTop - leftEyeBottom) > eyeBlinkThreshold;
+    const rightEyeOpen = Math.abs(rightEyeTop - rightEyeBottom) > eyeBlinkThreshold;
 
     let blinkDetected = false;
     if (!leftEyeOpen && !rightEyeOpen && this.blinkState.left && this.blinkState.right) {

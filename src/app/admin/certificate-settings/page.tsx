@@ -10,6 +10,7 @@ interface Settings {
   unitCode: string;
   classification: string;
   nextCertificateNumber: number;
+  computedNextNumber: number;
   lastCertificateNumber: number;
   year: string;
   format: string;
@@ -67,6 +68,7 @@ export default function CertificateSettingsPage() {
     unitCode: "IV.6.AU",
     classification: "A",
     nextCertificateNumber: 1,
+    computedNextNumber: 1,
     lastCertificateNumber: 0,
     year: String(new Date().getFullYear()),
     resetOption: "per_tahun" as const,
@@ -98,6 +100,7 @@ export default function CertificateSettingsPage() {
           d.letterPrefix = d.letterPrefix || "NO : ";
           d.participantName = d.participantName || "";
           d.nextCertificateNumber = d.nextCertificateNumber ?? 1;
+          d.computedNextNumber = d.computedNextNumber ?? d.nextCertificateNumber;
           d.lastCertificateNumber = d.lastCertificateNumber ?? 0;
           d.resetOption = d.resetOption || "per_tahun";
           d.letterType = d.letterType || "KET";
@@ -123,6 +126,7 @@ export default function CertificateSettingsPage() {
           d.letterPrefix = d.letterPrefix || "NO : ";
           d.participantName = d.participantName || "";
           d.nextCertificateNumber = d.nextCertificateNumber ?? 1;
+          d.computedNextNumber = d.computedNextNumber ?? d.nextCertificateNumber;
           d.lastCertificateNumber = d.lastCertificateNumber ?? 0;
           d.resetOption = d.resetOption || "per_tahun";
           d.letterType = d.letterType || "KET";
@@ -468,20 +472,26 @@ export default function CertificateSettingsPage() {
             </p>
           </div>
 
-          {/* Nomor Selanjutnya */}
+          {/* Nomor Selanjutnya (computed) */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
             <div className="flex items-center gap-2 mb-1">
               <div className="w-2 h-2 rounded-full bg-blue-500"></div>
               <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
-                Nomor Selanjutnya
+                Akan Terbit
               </p>
             </div>
             <p className="text-2xl font-bold text-blue-800 font-mono">
-              {String(settings.nextCertificateNumber).padStart(2, "0")}
+              {String(settings.computedNextNumber).padStart(2, "0")}
             </p>
             <p className="text-xs text-blue-600 mt-1">
-              {generateCode(settings, settings.nextCertificateNumber)}
+              {generateCode(settings, settings.computedNextNumber)}
             </p>
+            {settings.nextCertificateNumber !== settings.computedNextNumber && (
+              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                <span>⚠️</span>
+                <span>Konfigurasi mulai dari <strong>{settings.nextCertificateNumber}</strong>, tapi <strong>{settings.computedNextNumber}</strong> akan terbit karena nomor sebelumnya sudah ada.</span>
+              </p>
+            )}
           </div>
         </div>
 

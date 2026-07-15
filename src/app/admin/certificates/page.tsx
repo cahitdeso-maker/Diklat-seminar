@@ -9,6 +9,7 @@ export default function CertificatesPage() {
   const [loading, setLoading] = useState(true);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [sendingAll, setSendingAll] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -184,15 +185,80 @@ export default function CertificatesPage() {
           </div>
 
           {participants.filter((p) => p.isPresent).length > 0 && (
-            <button
-              onClick={sendAllCertificates}
-              disabled={sendingAll}
-              className="mb-6 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg disabled:opacity-50 text-sm"
-            >
-              {sendingAll
-                ? "Mengirim..."
-                : `📤 Kirim Semua Sertifikat (${participants.filter((p) => p.isPresent && p.phoneNumber && !p.certificateSent).length} belum terkirim)`}
-            </button>
+            <div className="mb-6 flex flex-wrap items-center gap-3">
+              <button
+                onClick={sendAllCertificates}
+                disabled={sendingAll}
+                className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg disabled:opacity-50 text-sm"
+              >
+                {sendingAll
+                  ? "Mengirim..."
+                  : `📤 Kirim Semua Sertifikat (${participants.filter((p) => p.isPresent && p.phoneNumber && !p.certificateSent).length} belum terkirim)`}
+              </button>
+
+              <button
+                onClick={async () => {
+                  setDownloadingAll(true);
+                  setMessage("");
+                  try {
+                    const res = await fetch(
+                      `/api/certificates/download-all?seminarId=${selectedSeminarId}`,
+                    );
+                    if (!res.ok) {
+                      const err = await res.json();
+                      setMessage(`❌ ${err.error || "Gagal mendownload sertifikat"}`);
+                      return;
+                    }
+                    // Download ZIP file
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    // Try to get filename from Content-Disposition header, fallback to seminar name
+                    const disposition = res.headers.get("Content-Disposition");
+                    let filename = `sertifikat_${selectedSeminarId.substring(0, 8)}.zip`;
+                    if (disposition) {
+                      const match = disposition.match(/filename="?([^";]+)"?/);
+                      if (match) filename = match[1];
+                    }
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+
+                    const successCount = res.headers.get("X-Success-Count");
+                    const failCount = res.headers.get("X-Fail-Count");
+                    if (successCount) {
+                      const msg = `✅ ${successCount} sertifikat berhasil didownload`;
+                      setMessage(
+                        failCount && parseInt(failCount) > 0
+                          ? `${msg}, ${failCount} gagal`
+                          : msg,
+                      );
+                    }
+                  } catch {
+                    setMessage("❌ Gagal terhubung ke server");
+                  } finally {
+                    setDownloadingAll(false);
+                  }
+                }}
+                disabled={downloadingAll}
+                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg disabled:opacity-50 text-sm"
+              >
+                {downloadingAll ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Mendownload...
+                  </span>
+                ) : (
+                  <>⬇️ Download Semua Sertifikat ({participants.filter((p) => p.isPresent).length})</>
+                )}
+              </button>
+            </div>
           )}
 
           {participants.length === 0 ? (

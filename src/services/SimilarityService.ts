@@ -1,11 +1,17 @@
 /**
  * SimilarityService
  *
- * Computes similarity between face embeddings using cosine similarity.
+ * Computes similarity between face descriptors using Euclidean distance.
  * Manages similarity threshold configuration.
+ *
+ * As per PRD:
+ * - distance < 0.5 → same person (match)
+ * - distance 0.5-0.6 → possible match
+ * - distance > 0.6 → different person
  */
 export class SimilarityService {
-  private static readonly DEFAULT_THRESHOLD = 0.90;
+  /** Euclidean distance threshold for face matching */
+  private static readonly DEFAULT_EUCLIDEAN_THRESHOLD = 0.5;
 
   /**
    * Compute cosine similarity between two embedding vectors.
@@ -37,6 +43,12 @@ export class SimilarityService {
   /**
    * Compute Euclidean distance between two embeddings.
    * Lower values = more similar.
+   * This is the PRIMARY comparison method as per PRD.
+   *
+   * For face-api.js FaceNet descriptors:
+   * - distance < 0.5 → same person
+   * - distance 0.5-0.6 → possible match
+   * - distance > 0.6 → different person
    */
   static euclideanDistance(embeddingA: number[], embeddingB: number[]): number {
     if (embeddingA.length !== embeddingB.length) {
@@ -52,43 +64,49 @@ export class SimilarityService {
   }
 
   /**
-   * Compare two embeddings and return match result.
+   * Compare two embeddings using Euclidean distance (PRD-recommended method).
+   * Returns match result with similarity score and distance.
+   *
+   * @param registeredEmbedding - stored face descriptor
+   * @param capturedEmbedding - captured face descriptor
+   * @param threshold - Euclidean distance threshold (default: 0.5)
    */
   static compare(
     registeredEmbedding: number[],
     capturedEmbedding: number[],
-    threshold: number = SimilarityService.DEFAULT_THRESHOLD
+    threshold: number = SimilarityService.DEFAULT_EUCLIDEAN_THRESHOLD
   ): { match: boolean; similarity: number; distance: number } {
-    const similarity = this.cosineSimilarity(
-      registeredEmbedding,
-      capturedEmbedding
-    );
+    // Use Euclidean distance as primary comparison (per PRD)
     const distance = this.euclideanDistance(
       registeredEmbedding,
       capturedEmbedding
     );
 
+    // Convert distance to similarity percentage for display:
+    // distance 0.0 = 100%, distance 0.5 = 50%, distance 1.0 = 0%
+    const similarity = Math.max(0, Math.round((1 - distance) * 10000) / 10000);
+
     return {
-      match: similarity >= threshold,
-      similarity: Math.round(similarity * 10000) / 10000,
+      match: distance < threshold,
+      similarity,
       distance: Math.round(distance * 10000) / 10000,
     };
   }
 
   /**
-   * Get the default similarity threshold.
+   * Get the default Euclidean distance threshold.
    */
   static getDefaultThreshold(): number {
-    return this.DEFAULT_THRESHOLD;
+    return this.DEFAULT_EUCLIDEAN_THRESHOLD;
   }
 
   /**
-   * Find the best match from a list of registered embeddings.
+   * Find the best match from a list of registered embeddings using Euclidean distance.
    */
   static findBestMatch(
     capturedEmbedding: number[],
     registeredEmbeddings: Array<{ id: string; embedding: number[] }>,
-    threshold: number = SimilarityService.DEFAULT_THRESHOLD
+    threshold: number = SimilarityService.DEFAULT_EUCLIDEAN_THRESHOLD
   ): {
     bestMatch: { id: string; similarity: number; distance: number } | null;
     allMatches: Array<{ id: string; similarity: number; distance: number }>;
@@ -102,11 +120,11 @@ export class SimilarityService {
       return { id: reg.id, similarity, distance };
     });
 
-    // Sort by similarity descending
-    allMatches.sort((a, b) => b.similarity - a.similarity);
+    // Sort by distance ascending (lower distance = better match)
+    allMatches.sort((a, b) => a.distance - b.distance);
 
     const bestMatch =
-      allMatches.length > 0 && allMatches[0].similarity >= threshold
+      allMatches.length > 0 && allMatches[0].distance < threshold
         ? allMatches[0]
         : null;
 

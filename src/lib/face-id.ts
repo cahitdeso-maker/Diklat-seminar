@@ -21,14 +21,14 @@
 
 let modelsLoaded = false;
 
-const MODEL_URL = "https://justadudewhohacks.github.io/face-api.js/models";
+const MODEL_URL = "/models";
 
 export async function loadFaceApiModels(): Promise<void> {
   if (modelsLoaded) return;
 
   try {
     // Dynamically import face-api.js
-    const faceapi = await import("face-api.js");
+    const faceapi = await import("@vladmandic/face-api");
 
     await Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
@@ -55,7 +55,7 @@ export async function loadFaceApiModels(): Promise<void> {
 export async function extractDescriptor(
   photoDataUrl: string,
 ): Promise<number[] | null> {
-  const faceapi = await import("face-api.js");
+  const faceapi = await import("@vladmandic/face-api");
 
   const img = new Image();
   img.src = photoDataUrl;
@@ -84,7 +84,7 @@ export async function extractDescriptor(
 export async function extractDescriptorFromVideo(
   video: HTMLVideoElement,
 ): Promise<number[] | null> {
-  const faceapi = await import("face-api.js");
+  const faceapi = await import("@vladmandic/face-api");
 
   // Ensure models are loaded
   await loadFaceApiModels();
@@ -111,11 +111,11 @@ export async function extractDescriptorFromVideo(
  * distance 0.5-0.6 → 70-90% (likely same)
  * distance > 0.6 → < 70% (different)
  */
-export function compareDescriptors(
+export async function compareDescriptors(
   descriptor1: number[],
   descriptor2: number[],
-): number {
-  const faceapi = require("face-api.js");
+): Promise<number> {
+  const faceapi = await import("@vladmandic/face-api");
 
   const distance = faceapi.euclideanDistance(
     Float32Array.from(descriptor1),

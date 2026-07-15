@@ -321,47 +321,18 @@ export default function PublicRegisterPage() {
         return;
       }
 
-      // Get face detection for cropping
-      const timestamp = performance.now();
-      const detectionResult = await detectFaces(video, timestamp);
+      // Generate 128D face descriptor directly from video
+      // face-api.js does face detection + descriptor extraction in one call
+      setFaceStatus("Menghasilkan descriptor wajah...");
+      const recognitionResult = await generateEmbedding(video);
 
-      if (!detectionResult.detected || !detectionResult.faceRect) {
-        setError("Wajah tidak terdeteksi saat pengambilan foto");
-        setProcessing(false);
-        return;
-      }
-
-      // Crop face from video frame using bounding box
-      setFaceStatus("Mengambil gambar wajah...");
-      const croppedFace = cropFace(video, detectionResult.faceRect);
-      debugLog("face cropped for recognition", {
-        width: croppedFace.width,
-        height: croppedFace.height,
-      });
-
-      if (croppedFace.width === 0 || croppedFace.height === 0) {
-        setError("Gagal mengambil gambar wajah. Silakan coba lagi.");
-        setProcessing(false);
-        return;
-      }
-
-      // Generate embedding from cropped face image (ONNX model)
-      setFaceStatus("Menghasilkan embedding wajah...");
-      const recognitionResult = await generateEmbedding(croppedFace);
-
-      if (!recognitionResult.success || recognitionResult.embedding.length === 0) {
-        setError("Gagal menghasilkan embedding wajah. Silakan coba lagi.");
-        setProcessing(false);
-        return;
-      }
-
-      debugLog("embedding generated", {
+      debugLog("face descriptor generated", {
         dim: recognitionResult.embedding.length,
         method: recognitionResult.method,
         time: `${recognitionResult.inferenceTime}ms`,
       });
 
-      // Normalize embedding
+      // Normalize descriptor
       const normalizedEmbedding = EmbeddingService.normalize(recognitionResult.embedding);
 
       setFaceData(dataUrl);
@@ -790,9 +761,8 @@ export default function PublicRegisterPage() {
                     )}
 
                     {/* Camera View */}
-                    {cameraActive && (
-                      <div className="relative aspect-[4/3] bg-black rounded-xl overflow-hidden mb-4">
-                        <video
+                    <div className={`relative aspect-[4/3] bg-black rounded-xl overflow-hidden mb-4 ${cameraActive ? "" : "hidden"}`}>
+                      <video
                           ref={videoRef}
                           className="w-full h-full object-cover"
                           autoPlay
@@ -840,7 +810,6 @@ export default function PublicRegisterPage() {
                           </button>
                         )}
                       </div>
-                    )}
 
                     {/* Captured face preview */}
                     {faceData && !cameraActive && (

@@ -4,7 +4,10 @@
  * Mengirim pesan WhatsApp melalui server Baileys di http://192.168.12.72:3000
  */
 
-const WHATSAPP_API_URL = "http://192.168.12.72:3000/send-message";
+const WA_GATEWAY_URL = process.env.WA_GATEWAY_URL || "http://192.168.12.72:3000";
+const WA_GATEWAY_SECRET = process.env.WA_GATEWAY_SECRET || "wa-gateway-key-2024-presensi-medis";
+
+const WHATSAPP_API_URL = `${WA_GATEWAY_URL}/send-message`;
 
 export interface WhatsAppResponse {
   success: boolean;
@@ -18,7 +21,10 @@ export async function sendMessage(
   try {
     const res = await fetch(WHATSAPP_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": WA_GATEWAY_SECRET,
+      },
       body: JSON.stringify({
         number: phoneNumber,
         message,
