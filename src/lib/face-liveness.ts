@@ -10,7 +10,7 @@
 export class FaceLivenessService {
   private blinkState = { left: true, right: true };
   private blinkCount = 0;
-  private requiredBlinks = 1;
+  private requiredBlinks = 0;
   private headTurnState = { left: false, right: false };
   private headTurnCount = 0;
   private requiredHeadTurns = 0;

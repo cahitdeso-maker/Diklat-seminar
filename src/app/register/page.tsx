@@ -6,7 +6,7 @@ import QRCode from "react-qr-code";
 import { FaceCamera } from "@/lib/face-camera";
 import { detectFaces, cropFace, loadFaceLandmarkerModel } from "@/services/FaceDetectionService";
 import { validateFaceQuality, analyzeImageQuality } from "@/services/FaceQualityService";
-import { generateEmbedding } from "@/services/FaceRecognitionService";
+import { generateEmbedding, loadRecognitionModel } from "@/services/FaceRecognitionService";
 import { EmbeddingService } from "@/services/EmbeddingService";
 import { FaceLivenessService } from "@/lib/face-liveness";
 
@@ -70,6 +70,8 @@ export default function PublicRegisterPage() {
   const isDetectingRef = useRef(false);
   const previousLandmarksRef = useRef<Float32Array | null>(null);
   const isMountedRef = useRef(true);
+  const autoCapturedRef = useRef(false);
+  const autoCaptureTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -84,10 +86,14 @@ export default function PublicRegisterPage() {
 
   const loadModels = async () => {
     try {
-      await loadFaceLandmarkerModel();
+      // Load detection model + recognition model in parallel
+      await Promise.all([
+        loadFaceLandmarkerModel(),
+        loadRecognitionModel(),
+      ]);
       if (isMountedRef.current) {
         setModelsLoading(false);
-        debugLog("MediaPipe model loaded");
+        debugLog("All face models loaded");
       }
     } catch (err: any) {
       if (isMountedRef.current) {
@@ -137,7 +143,19 @@ export default function PublicRegisterPage() {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
+    if (autoCaptureTimeoutRef.current !== null) {
+      clearTimeout(autoCaptureTimeoutRef.current);
+      autoCaptureTimeoutRef.current = null;
+    }
     isDetectingRef.current = false;
+  }, []);
+
+  const resetAutoCapture = useCallback(() => {
+    autoCapturedRef.current = false;
+    if (autoCaptureTimeoutRef.current !== null) {
+      clearTimeout(autoCaptureTimeoutRef.current);
+      autoCaptureTimeoutRef.current = null;
+    }
   }, []);
 
   const stopCamera = useCallback(() => {
@@ -166,6 +184,7 @@ export default function PublicRegisterPage() {
     setFaceData(null);
     setFaceEmbedding(null);
     setError("");
+    resetAutoCapture();
 
     debugLog("starting camera");
 
@@ -230,7 +249,7 @@ export default function PublicRegisterPage() {
     try {
       const result = await detectFaces(video, timestamp);
 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || processing) return;
 
       if (!result.detected) {
         setFaceStatus("Wajah tidak terdeteksi");
@@ -251,12 +270,10 @@ export default function PublicRegisterPage() {
       // Check quality
       const quality = validateFaceQuality(result, video.videoWidth, video.videoHeight);
 
-      // Check liveness
-      if (result.landmarks && result.landmarks.length > 0 && livenessRef.current) {
-        const liveness = livenessRef.current.checkLiveness(result.landmarks[0]);
-
-        // Check if likely a photo
-        if (previousLandmarksRef.current && livenessRef.current.isLikelyPhoto(result.landmarks[0], previousLandmarksRef.current)) {
+      // Check if likely a photo (anti-spoofing via movement)
+      if (result.landmarks && result.landmarks.length > 0) {
+        // Anti-spoofing: compare with previous frame landmarks
+        if (previousLandmarksRef.current && livenessRef.current?.isLikelyPhoto(result.landmarks[0], previousLandmarksRef.current)) {
           setFaceStatus("Terdeteksi sebagai foto! Gerakkan wajah Anda");
           setFaceReady(false);
           previousLandmarksRef.current = result.landmarks[0];
@@ -266,16 +283,25 @@ export default function PublicRegisterPage() {
         }
         previousLandmarksRef.current = result.landmarks[0];
 
-        // Update status based on quality and liveness
-        if (quality.score >= 70 && liveness.passed) {
+        // Update status based on quality only (no liveness delay)
+        if (quality.score >= 50) {
           setFaceStatus("Wajah siap direkam ✓");
           setFaceReady(true);
           setFaceQuality(quality.score);
-        } else if (quality.score < 70) {
-          setFaceStatus(quality.messages[0] || "Posisikan wajah dengan benar");
-          setFaceReady(false);
+
+          // Auto-capture when face is detected with good quality
+          if (!autoCapturedRef.current) {
+            autoCapturedRef.current = true;
+            setFaceStatus("Wajah terdeteksi! Menyimpan otomatis...");
+            autoCaptureTimeoutRef.current = setTimeout(() => {
+              autoCaptureTimeoutRef.current = null;
+              if (isMountedRef.current) {
+                captureFace();
+              }
+            }, 100);
+          }
         } else {
-          setFaceStatus(liveness.message);
+          setFaceStatus(quality.messages[0] || "Posisikan wajah dengan benar");
           setFaceReady(false);
         }
       }
@@ -292,6 +318,12 @@ export default function PublicRegisterPage() {
   };
 
   const captureFace = async () => {
+    // Cancel any pending auto-capture timeout
+    if (autoCaptureTimeoutRef.current !== null) {
+      clearTimeout(autoCaptureTimeoutRef.current);
+      autoCaptureTimeoutRef.current = null;
+    }
+
     const camera = faceCameraRef.current;
     const video = videoRef.current;
     if (!camera || !canvasRef.current || !video) return;
@@ -346,6 +378,7 @@ export default function PublicRegisterPage() {
     } catch (err: any) {
       debugLog("capture face error:", err);
       setError(err.message || "Gagal memproses wajah");
+      resetAutoCapture();
     } finally {
       setProcessing(false);
     }
@@ -356,6 +389,7 @@ export default function PublicRegisterPage() {
     setFaceEmbedding(null);
     setFaceQuality(0);
     setError("");
+    resetAutoCapture();
     startCamera();
   };
 
@@ -396,10 +430,18 @@ export default function PublicRegisterPage() {
     setSubmitting(true);
 
     try {
+      // Include face embedding if already captured (safety net)
+      const payload: Record<string, unknown> = { ...formData };
+      if (faceEmbedding) {
+        payload.faceEmbedding = faceEmbedding;
+        payload.faceData = faceData;
+        payload.faceQuality = faceQuality;
+      }
+
       const res = await fetch("/api/registrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -736,7 +778,8 @@ export default function PublicRegisterPage() {
                     </div>
                   </div>
 
-                  {/* Face Registration Section */}
+                  {/* Face Registration Section - Hanya muncul jika nama sudah diisi */}
+                  {formData.fullName.trim() !== '' && (
                   <div className="border-t border-slate-200 pt-5">
                     <h4 className="text-sm font-bold text-slate-700 mb-1">Foto Wajah (Opsional)</h4>
                     <p className="text-xs text-slate-400 mb-4">
@@ -757,6 +800,7 @@ export default function PublicRegisterPage() {
                     )}
 
                     {/* Camera View */}
+                    <canvas ref={canvasRef} className="hidden" />
                     <div className={`relative aspect-[4/3] bg-black rounded-xl overflow-hidden mb-4 ${cameraActive ? "" : "hidden"}`}>
                       <video
                           ref={videoRef}
@@ -785,15 +829,20 @@ export default function PublicRegisterPage() {
                             {faceStatus || "Memindai..."}
                           </div>
                         </div>
-                        {/* Capture button */}
-                        {faceReady && (
+                        {/* Auto-capture/manual capture buttons */}
+                        {processing && (
+                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-5 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-lg flex items-center gap-2">
+                            <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                            {faceStatus}
+                          </div>
+                        )}
+                        {faceReady && !processing && (
                           <button
                             type="button"
                             onClick={captureFace}
-                            disabled={processing}
                             className="absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors shadow-lg animate-pulse disabled:opacity-60"
                           >
-                            {processing ? "Memproses..." : "Ambil Foto"}
+                            Ambil Foto
                           </button>
                         )}
                         {!faceReady && !processing && (
@@ -849,6 +898,7 @@ export default function PublicRegisterPage() {
                       </div>
                     )}
                   </div>
+                  )}
 
                   <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
                     <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

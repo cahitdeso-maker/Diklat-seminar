@@ -109,34 +109,25 @@ export default function AdminSeminars() {
     }
   };
 
-  const hasEnded = (sem: Seminar): boolean => {
-    if (!sem.date || !sem.endTime) {
-      return false;
-    }
-    const seminarEnd = new Date(`${sem.date}T${sem.endTime}:00`);
-    const now = new Date();
-    return seminarEnd < now;
-  };
-
   useEffect(() => {
     loadSeminars();
-    // Force re-render every 30 seconds so completed status refreshes
+    // Periodic refresh untuk update data
     const interval = setInterval(() => setTick((n) => n + 1), 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Filter seminars by status — using isCompleted from database (set server-side via API) and end time
+  // Filter seminars by status — only isCompleted/isDeleted, no auto-end detection
   const activeSeminars = seminars.filter(
-    (sem) => !sem.isDeleted && !sem.isCompleted && !hasEnded(sem),
+    (sem) => !sem.isDeleted && !sem.isCompleted,
   );
   const historySeminars = seminars.filter(
-    (sem) => sem.isDeleted || sem.isCompleted || hasEnded(sem),
+    (sem) => sem.isDeleted || sem.isCompleted,
   );
 
   // Load presensi status for all active seminars
   useEffect(() => {
     activeSeminars.forEach((sem) => {
-      if (!sem.isCompleted && !hasEnded(sem) && !sem.isDeleted) {
+      if (!sem.isCompleted && !sem.isDeleted) {
         loadPresensiStatus(sem.id);
       }
     });
@@ -225,8 +216,8 @@ export default function AdminSeminars() {
   };
 
   const openEditForm = (sem: Seminar) => {
-    // Prevent editing seminars that have ended
-    if (hasEnded(sem)) {
+    // Prevent editing seminars that are completed
+    if (sem.isCompleted) {
       setError("Seminar yang sudah selesai tidak dapat diedit");
       return;
     }
@@ -437,6 +428,16 @@ export default function AdminSeminars() {
     } catch {
       setError("Gagal menyimpan");
     }
+  };
+
+  const handleComplete = async (id: string) => {
+    if (!confirm("Tandai seminar ini sebagai selesai? Seminar akan dipindahkan ke Riwayat.")) return;
+    await fetch(`/api/seminars?id=${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isCompleted: true }),
+    });
+    loadSeminars();
   };
 
   const handleDelete = async (id: string) => {
@@ -1045,15 +1046,9 @@ export default function AdminSeminars() {
                             ✅ Selesai
                           </span>
                         )}
-                        {!sem.isDeleted && !sem.isCompleted && hasEnded(sem) && (
-                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded">
-                            ✅ Selesai
-                          </span>
-                        )}
                         {!sem.isActive &&
                           !sem.isDeleted &&
-                          !sem.isCompleted &&
-                          !hasEnded(sem) && (
+                          !sem.isCompleted && (
                             <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-semibold rounded">
                               Nonaktif
                             </span>
@@ -1069,9 +1064,9 @@ export default function AdminSeminars() {
                           <div><span className="font-medium text-slate-700">Face ID:</span> {sem.useFace ? "Ya" : "Tidak"}</div>
                           <div><span className="font-medium text-slate-700">Daftar Hadir:</span> {sem.useManual ? "Ya" : "Tidak"}</div>
                           <div><span className="font-medium text-slate-700">Status:</span> 
-                            {!sem.isActive && !sem.isDeleted && !sem.isCompleted && !hasEnded(sem) ? "Nonaktif" : 
+                            {!sem.isActive && !sem.isDeleted && !sem.isCompleted ? "Nonaktif" : 
                               sem.isDeleted ? "Terhapus" : 
-                                sem.isCompleted || hasEnded(sem) ? "Selesai" : "Aktif"}
+                                sem.isCompleted ? "Selesai" : "Aktif"}
                           </div>
                         </div>
                         {sem.description && (
@@ -1129,15 +1124,9 @@ export default function AdminSeminars() {
                               ✅ Selesai
                             </span>
                           )}
-                          {!sem.isDeleted && !sem.isCompleted && hasEnded(sem) && (
-                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-semibold rounded">
-                              ✅ Selesai
-                            </span>
-                          )}
                           {!sem.isActive &&
                             !sem.isDeleted &&
-                            !sem.isCompleted &&
-                            !hasEnded(sem) && (
+                            !sem.isCompleted && (
                               <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-semibold rounded">
                                 Nonaktif
                               </span>
@@ -1171,13 +1160,21 @@ export default function AdminSeminars() {
                         </>
                       ) : (
                         <>
-                          {!sem.isCompleted && !hasEnded(sem) && (
-                            <button
-                              onClick={() => openEditForm(sem)}
-                              className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-xl hover:bg-indigo-100 transition-all"
-                            >
-                              ✏️ Edit
-                            </button>
+                          {!sem.isCompleted && (
+                            <>
+                              <button
+                                onClick={() => openEditForm(sem)}
+                                className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-xl hover:bg-indigo-100 transition-all"
+                              >
+                                ✏️ Edit
+                              </button>
+                              <button
+                                onClick={() => handleComplete(sem.id)}
+                                className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-semibold rounded-xl hover:bg-emerald-100 transition-all"
+                              >
+                                ✅ Selesai
+                              </button>
+                            </>
                           )}
                           <Link
                             href={`/admin/participants?seminarId=${sem.id}`}
@@ -1185,7 +1182,7 @@ export default function AdminSeminars() {
                           >
                             👥 Peserta
                           </Link>
-                          {!sem.isCompleted && !hasEnded(sem) && (
+                          {!sem.isCompleted && (
                             <button
                               onClick={() => handleDelete(sem.id)}
                               className="px-3 py-1.5 bg-red-50 text-red-600 text-xs font-semibold rounded-xl hover:bg-red-100 transition-all"
@@ -1193,7 +1190,7 @@ export default function AdminSeminars() {
                               🗑 Hapus
                             </button>
                           )}
-                          {(sem.isCompleted || sem.isDeleted || hasEnded(sem)) && (
+                          {sem.isCompleted && (
                             <button
                               onClick={() => setViewingId(sem.id)}
                               className="px-3 py-1.5 bg-slate-50 text-slate-600 text-xs font-semibold rounded-xl hover:bg-slate-100 transition-all"
@@ -1205,8 +1202,8 @@ export default function AdminSeminars() {
                       )}
                       </div>
                     </div>
-                    {/* Presensi toggle for ongoing seminars */}
-                    {!sem.isCompleted && !hasEnded(sem) && !sem.isDeleted && (
+                    {/* Presensi toggle for active (non-completed, non-deleted) seminars */}
+                    {!sem.isCompleted && !sem.isDeleted && (
                       <div className="px-5 pb-4 pt-0">
                         <div className="flex items-center justify-between py-2 px-4 rounded-xl bg-slate-50">
                           <div className="flex items-center gap-2">

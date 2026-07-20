@@ -16,40 +16,6 @@ function getSessionUser(request: Request) {
   }
 }
 
-// Helper: update isCompleted for seminars that have passed their end time
-async function updateCompletedStatus() {
-  const now = new Date();
-  const all = await db
-    .select()
-    .from(seminars)
-    .where(eq(seminars.isDeleted, false));
-    for (const sem of all) {
-      if (!sem.date || sem.isCompleted) continue;
-      const dateStr = String(sem.date);
-
-      // Jika seminar punya endTime, gunakan date+endTime untuk menentukan selesai
-      if (sem.endTime) {
-        const seminarEnd = new Date(dateStr + "T" + sem.endTime + ":00");
-        if (seminarEnd < now) {
-          await db
-            .update(seminars)
-            .set({ isCompleted: true })
-            .where(eq(seminars.id, sem.id));
-        }
-      } else {
-        // Tanpa endTime, cukup cek tanggal
-        const seminarDate = new Date(dateStr + "T00:00:00");
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        if (seminarDate < today) {
-          await db
-            .update(seminars)
-            .set({ isCompleted: true })
-            .where(eq(seminars.id, sem.id));
-        }
-      }
-    }
-}
-
 // GET: Ambil semua seminar (yang aktif)
 export async function GET(request: Request) {
   const user = getSessionUser(request);
@@ -61,9 +27,6 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     const onlyActive = searchParams.get("active") !== "false";
-
-    // Auto-update completed status for seminars past their end time
-    await updateCompletedStatus();
 
     if (id) {
       const [seminar] = await db

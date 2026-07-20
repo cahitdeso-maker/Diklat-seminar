@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { FaceCamera } from "@/lib/face-camera";
-import { detectFaces, cropFace, loadFaceLandmarkerModel } from "@/services/FaceDetectionService";
+import { detectFaces, loadFaceLandmarkerModel } from "@/services/FaceDetectionService";
 import { validateFaceQuality } from "@/services/FaceQualityService";
-import { generateEmbedding } from "@/services/FaceRecognitionService";
+import { generateEmbedding, loadRecognitionModel } from "@/services/FaceRecognitionService";
 import { EmbeddingService } from "@/services/EmbeddingService";
 import { FaceLivenessService } from "@/lib/face-liveness";
 
@@ -30,10 +30,9 @@ export default function PresensiPage() {
   const [faceReady, setFaceReady] = useState(false);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [similarityScore, setSimilarityScore] = useState(0);
-  const [livenessProgress, setLivenessProgress] = useState(0);
+
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const faceCameraRef = useRef<FaceCamera | null>(null);
   const livenessRef = useRef<FaceLivenessService | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -61,7 +60,6 @@ export default function PresensiPage() {
     setVerifying(false);
     setFaceReady(false);
     setFaceStatus("");
-    setLivenessProgress(0);
   }, [cleanupDetection]);
 
   // Load models on mount
@@ -77,10 +75,13 @@ export default function PresensiPage() {
 
   const loadModels = async () => {
     try {
-      await loadFaceLandmarkerModel();
+      await Promise.all([
+        loadFaceLandmarkerModel(),
+        loadRecognitionModel(),
+      ]);
       if (isMountedRef.current) {
         setModelsLoading(false);
-        debugLog("MediaPipe model loaded");
+        debugLog("All face models loaded");
       }
     } catch (err: any) {
       if (isMountedRef.current) {
@@ -195,12 +196,9 @@ export default function PresensiPage() {
       // Check quality
       const quality = validateFaceQuality(result, video.videoWidth, video.videoHeight);
 
-      // Check liveness
-      if (result.landmarks && result.landmarks.length > 0 && livenessRef.current) {
-        const liveness = livenessRef.current.checkLiveness(result.landmarks[0]);
-
-        // Check if likely a photo
-        if (previousLandmarksRef.current && livenessRef.current.isLikelyPhoto(result.landmarks[0], previousLandmarksRef.current)) {
+      // Check if likely a photo (anti-spoofing via movement)
+      if (result.landmarks && result.landmarks.length > 0) {
+        if (previousLandmarksRef.current && livenessRef.current?.isLikelyPhoto(result.landmarks[0], previousLandmarksRef.current)) {
           setFaceStatus("Terdeteksi sebagai foto! Gerakkan wajah Anda");
           setFaceReady(false);
           previousLandmarksRef.current = result.landmarks[0];
@@ -210,17 +208,12 @@ export default function PresensiPage() {
         }
         previousLandmarksRef.current = result.landmarks[0];
 
-        setLivenessProgress(liveness.progress);
-
-        // Update status
-        if (quality.score >= 70 && liveness.passed) {
+        // Update status based on quality only (no liveness delay)
+        if (quality.score >= 50) {
           setFaceStatus("Wajah siap diverifikasi ✓");
           setFaceReady(true);
-        } else if (quality.score < 70) {
-          setFaceStatus(quality.messages[0] || "Posisikan wajah dengan benar");
-          setFaceReady(false);
         } else {
-          setFaceStatus(liveness.message);
+          setFaceStatus(quality.messages[0] || "Posisikan wajah dengan benar");
           setFaceReady(false);
         }
       }
@@ -240,7 +233,7 @@ export default function PresensiPage() {
   const captureAndVerify = async () => {
     const camera = faceCameraRef.current;
     const video = videoRef.current;
-    if (!camera || !canvasRef.current || !video || verifying) return;
+    if (!camera || !video || verifying) return;
     if (!camera.isReady()) {
       setError("Kamera belum siap. Silakan coba lagi.");
       return;
@@ -291,7 +284,7 @@ export default function PresensiPage() {
         }
         setSimilarityScore(data.similarity);
         setParticipant(data.participant);
-        setStep("result");
+        setStep("done");
         stopCamera();
       } else {
         setError(data.error || "Wajah tidak cocok dengan data registrasi");
@@ -369,7 +362,6 @@ export default function PresensiPage() {
     setQrCode("");
     setError("");
     setSimilarityScore(0);
-    setLivenessProgress(0);
     stopCamera();
   };
 
@@ -526,34 +518,21 @@ export default function PresensiPage() {
                     </div>
                   )}
 
-                  {/* Liveness progress */}
-                  {scanning && livenessProgress > 0 && livenessProgress < 100 && (
-                    <div className="absolute bottom-16 left-1/2 -translate-x-1/2 w-3/4">
-                      <div className="bg-black/60 backdrop-blur-sm rounded-lg p-2">
-                        <div className="flex items-center justify-between text-xs text-white mb-1">
-                          <span>Verifikasi liveness</span>
-                          <span>{livenessProgress}%</span>
-                        </div>
-                        <div className="w-full bg-white/20 rounded-full h-1.5">
-                          <div
-                            className="bg-green-400 h-1.5 rounded-full transition-all duration-300"
-                            style={{ width: `${livenessProgress}%` }}
-                          ></div>
-                        </div>
-                      </div>
+                  {/* Auto-capture + verify button */}
+                  {verifying && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-5 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-lg flex items-center gap-2">
+                      <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                      Memverifikasi...
                     </div>
                   )}
-
-                  {/* Verify button */}
                   {scanning && faceReady && !verifying && (
                     <button
                       onClick={captureAndVerify}
                       className="absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transition-colors shadow-lg animate-pulse"
                     >
-                      Verifikasi Wajah Sekarang
+                      Verifikasi Wajah
                     </button>
                   )}
-
                   {scanning && !faceReady && !verifying && (
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
                       <button

@@ -60,7 +60,7 @@ export function validateFaceQuality(
     if (!result.faceRect) return false;
     const cx = result.faceRect.x + result.faceRect.width / 2;
     const cy = result.faceRect.y + result.faceRect.height / 2;
-    return cx >= 0.3 && cx <= 0.7 && cy >= 0.3 && cy <= 0.7;
+    return cx >= 0.15 && cx <= 0.85 && cy >= 0.15 && cy <= 0.85;
   })();
   if (!isCentered) {
     messages.push("Posisikan wajah di tengah frame");
