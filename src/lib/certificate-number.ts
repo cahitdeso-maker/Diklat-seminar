@@ -96,6 +96,7 @@ export async function generateCertificateNumber(
     .select({
       certificateNumber: registrations.certificateNumber,
       certificateCode: registrations.certificateCode,
+      fullName: registrations.fullName,
     })
     .from(registrations)
     .where(eq(registrations.id, registrationId))
@@ -176,7 +177,7 @@ export async function generateCertificateNumber(
       classification: configRow.classification,
       year: effectiveYear,
       format: configRow.format,
-      participantName: configRow.participantName,
+      participantName: existing.fullName || "",
       resetOption: configRow.resetOption,
       isDeleted: false,
     });
@@ -264,6 +265,13 @@ export async function updateCertificateNumber(
     throw new Error("Pengaturan nomor sertifikat belum dikonfigurasi");
   }
 
+  // Ambil nama peserta dari registrasi
+  const [regData] = await db
+    .select({ fullName: registrations.fullName })
+    .from(registrations)
+    .where(eq(registrations.id, registrationId))
+    .limit(1);
+
   const monthRoman = MONTHS_ROMAN[new Date().getMonth()];
   const effectiveYear = configRow.year || String(new Date().getFullYear());
 
@@ -296,21 +304,20 @@ export async function updateCertificateNumber(
     unitCode: configRow.unitCode,
     classification: configRow.classification,
     year: effectiveYear,
-    format: configRow.format,
-    participantName: configRow.participantName,
-    resetOption: configRow.resetOption,
-    isDeleted: false,
-  });
+    format: configRow.format,      participantName: regData?.fullName || "",
+      resetOption: configRow.resetOption,
+      isDeleted: false,
+    });
 
-  // Update registrasi peserta
-  await db
-    .update(registrations)
-    .set({
-      certificateNumber: newNumber,
-      certificateCode: cleanCode,
-      certificateGeneratedAt: new Date(),
-    })
-    .where(eq(registrations.id, registrationId));
+    // Update registrasi peserta
+    await db
+      .update(registrations)
+      .set({
+        certificateNumber: newNumber,
+        certificateCode: cleanCode,
+        certificateGeneratedAt: new Date(),
+      })
+      .where(eq(registrations.id, registrationId));
 
   return {
     number: newNumber,

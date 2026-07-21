@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { registrations, seminars } from "@/lib/schema";
+import { registrations, seminars, certificates } from "@/lib/schema";
 import { eq, and, desc, ilike } from "drizzle-orm";
 import { generateId } from "@/lib/utils";
 import { generateCertificateNumber } from "@/lib/certificate-number";
+import { v4 as uuidv4 } from "uuid";
 
 // GET: 
 //   - ?seminarId=xxx → ambil detail seminar (public)
@@ -192,10 +193,24 @@ export async function POST(request: Request) {
     });
 
     // Auto-generate certificate number
+    let certResult = null;
     try {
-      await generateCertificateNumber(id, seminarId);
+      certResult = await generateCertificateNumber(id, seminarId);
     } catch (certErr) {
       console.warn("Certificate number generation skipped:", certErr);
+    }
+
+    // Simpan record ke tabel certificates jika nomor berhasil digenerate
+    if (certResult) {
+      await db.insert(certificates).values({
+        id: uuidv4(),
+        userId: id,
+        title: seminar.title,
+        certificateNumber: certResult.code,
+        fileUrl: null,
+        generatedDate: new Date(),
+        isDeleted: false,
+      });
     }
 
     return NextResponse.json({
