@@ -169,6 +169,7 @@ export async function PATCH(request: Request) {
       "useFace",
       "useManual",
       "isActive",
+      "isCompleted",
       "presensiOpen",
       "isDeleted",
     ];

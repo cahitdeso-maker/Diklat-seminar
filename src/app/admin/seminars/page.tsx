@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface Seminar {
   id: string;
@@ -71,6 +72,14 @@ export default function AdminSeminars() {
   const [presensiStatus, setPresensiStatus] = useState<Record<string, boolean>>({});
   const [presensiLoading, setPresensiLoading] = useState<Record<string, boolean>>({});
   const [presensiMsg, setPresensiMsg] = useState<Record<string, string>>({});
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    type: "complete" | "delete";
+    seminarId: string;
+    seminarTitle: string;
+  } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const loadPresensiStatus = async (seminarId: string) => {
     try {
@@ -430,20 +439,59 @@ export default function AdminSeminars() {
     }
   };
 
-  const handleComplete = async (id: string) => {
-    if (!confirm("Tandai seminar ini sebagai selesai? Seminar akan dipindahkan ke Riwayat.")) return;
-    await fetch(`/api/seminars?id=${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isCompleted: true }),
-    });
-    loadSeminars();
+  const executeComplete = useCallback(async () => {
+    if (!confirmModal) return;
+    setConfirmLoading(true);
+    try {
+      const res = await fetch(`/api/seminars?id=${confirmModal.seminarId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isCompleted: true, presensiOpen: false }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setConfirmModal(null);
+        setActiveTab("history");
+        setError("✓ Seminar berhasil diselesaikan dan dipindahkan ke Riwayat");
+        setTimeout(() => setError(""), 3000);
+      } else {
+        setError(data.error || "Gagal menyelesaikan seminar");
+      }
+    } catch {
+      setError("Gagal menyelesaikan seminar");
+    } finally {
+      setConfirmLoading(false);
+      loadSeminars();
+    }
+  }, [confirmModal]);
+
+  const executeDelete = useCallback(async () => {
+    if (!confirmModal) return;
+    setConfirmLoading(true);
+    try {
+      const res = await fetch(`/api/seminars?id=${confirmModal.seminarId}`, { method: "DELETE" });
+      if (res.ok) {
+        setConfirmModal(null);
+        setError("✓ Seminar berhasil dihapus");
+        setTimeout(() => setError(""), 3000);
+      } else {
+        const data = await res.json();
+        setError(data.error || "Gagal menghapus seminar");
+      }
+    } catch {
+      setError("Gagal menghapus seminar");
+    } finally {
+      setConfirmLoading(false);
+      loadSeminars();
+    }
+  }, [confirmModal]);
+
+  const handleComplete = (id: string, title: string) => {
+    setConfirmModal({ type: "complete", seminarId: id, seminarTitle: title });
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Hapus seminar ini?")) return;
-    await fetch(`/api/seminars?id=${id}`, { method: "DELETE" });
-    loadSeminars();
+  const handleDelete = (id: string, title: string) => {
+    setConfirmModal({ type: "delete", seminarId: id, seminarTitle: title });
   };
 
   const handleRestore = async (id: string) => {
@@ -1169,7 +1217,7 @@ export default function AdminSeminars() {
                                 ✏️ Edit
                               </button>
                               <button
-                                onClick={() => handleComplete(sem.id)}
+                                onClick={() => handleComplete(sem.id, sem.title)}
                                 className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-semibold rounded-xl hover:bg-emerald-100 transition-all"
                               >
                                 ✅ Selesai
@@ -1184,7 +1232,7 @@ export default function AdminSeminars() {
                           </Link>
                           {!sem.isCompleted && (
                             <button
-                              onClick={() => handleDelete(sem.id)}
+                              onClick={() => handleDelete(sem.id, sem.title)}
                               className="px-3 py-1.5 bg-red-50 text-red-600 text-xs font-semibold rounded-xl hover:bg-red-100 transition-all"
                             >
                               🗑 Hapus
@@ -1270,6 +1318,29 @@ export default function AdminSeminars() {
             })}
         </div>
       ))}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        open={confirmModal !== null}
+        onClose={() => {
+          if (!confirmLoading) setConfirmModal(null);
+        }}
+        onConfirm={confirmModal?.type === "complete" ? executeComplete : executeDelete}
+        title={
+          confirmModal?.type === "complete"
+            ? "Selesaikan Seminar?"
+            : "Hapus Seminar?"
+        }
+        message={
+          confirmModal?.type === "complete"
+            ? `Seminar "${confirmModal?.seminarTitle || ""}" akan ditandai sebagai selesai dan dipindahkan ke Riwayat. Peserta tidak dapat lagi melakukan presensi.`
+            : `Seminar "${confirmModal?.seminarTitle || ""}" akan dihapus. Data masih bisa dipulihkan nanti.`
+        }
+        confirmLabel={confirmModal?.type === "complete" ? "Ya, Selesaikan" : "Ya, Hapus"}
+        cancelLabel="Batal"
+        confirmVariant={confirmModal?.type === "complete" ? "success" : "danger"}
+        loading={confirmLoading}
+      />
     </div>
   );
 }

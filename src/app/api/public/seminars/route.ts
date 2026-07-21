@@ -24,6 +24,7 @@ export async function GET() {
           eq(seminars.isDeleted, false),
           eq(seminars.isActive, true),
           eq(seminars.isCompleted, false),
+          eq(seminars.presensiOpen, true),
         ),
       )
       .orderBy(desc(seminars.date));

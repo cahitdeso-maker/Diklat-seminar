@@ -87,6 +87,7 @@ export async function GET(request: Request) {
           eq(seminars.isDeleted, false),
           eq(seminars.isActive, true),
           eq(seminars.isCompleted, false),
+          eq(seminars.presensiOpen, true),
           eq(seminars.useManual, true),
         ),
       )
