@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import { registrations, seminars } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { getCertificateHtml, inlineCertificateImages } from "@/lib/certificate-pdf";
-import puppeteer from "puppeteer";
 import { ZipArchive } from "archiver";
 
 /**
@@ -63,17 +62,6 @@ export async function GET(request: Request) {
       );
     }
 
-    // Launch puppeteer once and reuse for all participants
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-      ],
-    });
-
     // Set up archiver for ZIP output
     const archive = new ZipArchive({
       zlib: { level: 6 },
@@ -87,57 +75,40 @@ export async function GET(request: Request) {
     let successCount = 0;
     let failCount = 0;
 
-    try {
-      // Generate each participant's certificate and add to ZIP
-      for (const participant of participantList) {
-        try {
-          const html = await getCertificateHtml(
-            participant.id,
-            seminarId,
-            false,
-          );
+    // Generate each participant's certificate HTML and add to ZIP
+    for (const participant of participantList) {
+      try {
+        const html = await getCertificateHtml(
+          participant.id,
+          seminarId,
+          false,
+        );
 
-          // Inline images as base64 data URIs before rendering with Puppeteer
-          const htmlWithImages = inlineCertificateImages(html);
+        // Inline images as base64 data URIs for self-contained HTML
+        const htmlWithInlineImages = inlineCertificateImages(html);
 
-          // Generate PDF using shared browser instance
-          const page = await browser.newPage();
-          await page.setViewport({ width: 1123, height: 794, deviceScaleFactor: 2 });
-          await page.setContent(htmlWithImages, { waitUntil: "networkidle0" });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          const pdfBuffer = await page.pdf({
-            format: "A4",
-            landscape: true,
-            margin: { top: "0px", right: "0px", bottom: "0px", left: "0px" },
-            printBackground: true,
-            preferCSSPageSize: true,
-          });
-          await page.close();
+        // Clean filename: remove special chars, limit length
+        const safeName = participant.fullName
+          .replace(/[^a-zA-Z0-9\s]/g, "")
+          .replace(/\s+/g, "_")
+          .substring(0, 80);
 
-          // Clean filename: remove special chars, limit length
-          const safeName = participant.fullName
-            .replace(/[^a-zA-Z0-9\s]/g, "")
-            .replace(/\s+/g, "_")
-            .substring(0, 80);
+        const certNum = participant.certificateNumber
+          ? `${String(participant.certificateNumber).padStart(2, "0")}_`
+          : "";
 
-          const certNum = participant.certificateNumber
-            ? `${String(participant.certificateNumber).padStart(2, "0")}_`
-            : "";
-
-          archive.append(Buffer.from(pdfBuffer), {
-            name: `sertifikat_${certNum}${safeName}.pdf`,
-          });
-          successCount++;
-        } catch (error) {
-          console.error(
-            `Failed to generate certificate for ${participant.fullName}:`,
-            error,
-          );
-          failCount++;
-        }
+        // Simpan sebagai HTML dengan print CSS (bisa dibuka dan di-print ke PDF)
+        archive.append(Buffer.from(htmlWithInlineImages, "utf-8"), {
+          name: `sertifikat_${certNum}${safeName}.html`,
+        });
+        successCount++;
+      } catch (error) {
+        console.error(
+          `Failed to generate certificate for ${participant.fullName}:`,
+          error,
+        );
+        failCount++;
       }
-    } finally {
-      await browser.close();
     }
 
     // Finalize the archive
