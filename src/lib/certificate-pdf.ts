@@ -1,9 +1,9 @@
-import puppeteer from "puppeteer";
 import { db } from "./db";
 import { registrations, seminars, speakers, signatureSettings } from "./schema";
 import { eq, and } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
+import { launchBrowser } from "./puppeteer-browser";
 
 // Cache for inlined images to avoid re-reading from disk
 const imageCache = new Map<string, string>();
@@ -180,16 +180,7 @@ export async function generateCertificatePdf(html: string): Promise<Buffer> {
   // Inline images before rendering with Puppeteer
   const htmlWithInlineImages = inlineCertificateImages(html);
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-    ],
-  });
+  const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1123, height: 794, deviceScaleFactor: 2 });

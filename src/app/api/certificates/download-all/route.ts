@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { registrations, seminars } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { getCertificateHtml, inlineCertificateImages } from "@/lib/certificate-pdf";
-import puppeteer from "puppeteer";
+import { launchBrowser } from "@/lib/puppeteer-browser";
 import { ZipArchive } from "archiver";
 
 /**
@@ -64,16 +64,7 @@ export async function GET(request: Request) {
     }
 
     // Launch puppeteer once and reuse for all participants
-    const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-      ],
-    });
+    const browser = await launchBrowser();
 
     // Set up archiver for ZIP output
     const archive = new ZipArchive({
