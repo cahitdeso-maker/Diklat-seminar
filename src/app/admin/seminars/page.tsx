@@ -59,6 +59,7 @@ export default function AdminSeminars() {
   const [activeTab, setActiveTab] = useState<"active" | "history">("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [, setTick] = useState(0); // just to force re-render
+  const [submitting, setSubmitting] = useState(false);
 
   // Multi-speaker state
   const [speakersList, setSpeakersList] = useState<Speaker[]>([]);
@@ -277,7 +278,9 @@ export default function AdminSeminars() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return; // Cegah duplikasi submit
     setError("");
+    setSubmitting(true);
 
     try {
       const isEdit = editingId !== null;
@@ -436,6 +439,8 @@ export default function AdminSeminars() {
       }
     } catch {
       setError("Gagal menyimpan");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -782,9 +787,14 @@ export default function AdminSeminars() {
             <div className="md:col-span-2">
               <button
                 type="submit"
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-200/50"
+                disabled={submitting}
+                className={`w-full py-3 text-white font-semibold rounded-xl transition-all shadow-lg ${
+                  submitting
+                    ? "bg-slate-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-200/50"
+                }`}
               >
-                Simpan Seminar
+                {submitting ? "⏳ Menyimpan..." : "Simpan Seminar"}
               </button>
             </div>
           </form>
@@ -1055,9 +1065,14 @@ export default function AdminSeminars() {
                         <div className="md:col-span-2 flex gap-3 pt-2">
                           <button
                             type="submit"
-                            className="flex-1 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-indigo-800 transition-all shadow-md text-sm"
+                            disabled={submitting}
+                            className={`flex-1 py-2.5 text-white font-semibold rounded-xl transition-all shadow-md text-sm ${
+                              submitting
+                                ? "bg-slate-400 cursor-not-allowed"
+                                : "bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
+                            }`}
                           >
-                            💾 Simpan Perubahan
+                            {submitting ? "⏳ Menyimpan..." : "💾 Simpan Perubahan"}
                           </button>
                           <button
                             type="button"
