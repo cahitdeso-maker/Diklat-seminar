@@ -77,21 +77,25 @@ export async function GET(request: Request) {
     let successCount = 0;
     let failCount = 0;
 
-    // Launch ONE browser for all certificates
+    // Launch ONE browser for all certificates (efficient),
+    // but create a NEW page per participant to match how
+    // generateCertificatePdf() works — preventing CSS/rendering
+    // state from carrying over between certificates.
     const { launchBrowser } = await import("@/lib/puppeteer-browser");
     const browser = await launchBrowser();
 
     try {
-      const page = await browser.newPage();
-      await page.setViewport({ width: 1123, height: 794, deviceScaleFactor: 2 });
-
       for (const participant of participantList) {
+        // Create a fresh page for each participant (same as generateCertificatePdf)
+        const page = await browser.newPage();
         try {
+          await page.setViewport({ width: 1123, height: 794, deviceScaleFactor: 2 });
+
           // Generate HTML + inline images
           const html = await getCertificateHtml(participant.id, seminarId);
           const htmlWithImages = inlineCertificateImages(html);
 
-          // Render to PDF via Puppeteer (reuse same page)
+          // Render to PDF via Puppeteer
           await page.setContent(htmlWithImages, { waitUntil: "load" });
           // Tunggu rendering selesai (base64 images tidak perlu network request)
           await new Promise((resolve) => setTimeout(resolve, 500));
@@ -124,6 +128,8 @@ export async function GET(request: Request) {
             error,
           );
           failCount++;
+        } finally {
+          await page.close();
         }
       }
     } finally {
