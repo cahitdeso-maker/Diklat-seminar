@@ -1,4 +1,9 @@
 import type { Browser } from "puppeteer-core";
+import { createRequire } from "module";
+import { existsSync } from "fs";
+import { dirname, join } from "path";
+
+const require = createRequire(import.meta.url);
 
 /**
  * Launch Puppeteer browser dengan konfigurasi optimal untuk:
@@ -23,9 +28,41 @@ async function launchVercelBrowser(): Promise<Browser> {
 
   const puppeteer = await import("puppeteer-core");
 
+  // Resolve the chromium bin directory using createRequire to find the
+  // actual package location at runtime (important when the package is
+  // externalized but its binary assets may not be at the expected path).
+  let executablePath: string;
+
+  try {
+    // First attempt: let @sparticuz/chromium resolve the path itself
+    // This works when the package is properly externalized from the bundler.
+    executablePath = await Chromium.executablePath();
+  } catch {
+    // Second attempt: manually resolve the bin directory path using
+    // require.resolve to find the package location, then navigate to bin/
+    // This handles cases where import.meta.url gets transformed by the bundler.
+    try {
+      const chromiumPkgPath = require.resolve("@sparticuz/chromium/package.json");
+      const binDir = join(dirname(chromiumPkgPath), "bin");
+
+      if (!existsSync(binDir)) {
+        throw new Error(`Chromium bin directory not found at: ${binDir}`);
+      }
+
+      executablePath = await Chromium.executablePath(binDir);
+    } catch (innerError) {
+      console.error("[Browser] Failed to resolve @sparticuz/chromium bin path:", innerError);
+      throw new Error(
+        "Could not find chromium binary. Ensure @sparticuz/chromium is properly installed " +
+        "and its bin/ directory is included in the deployment. " +
+        "See: https://github.com/Sparticuz/chromium#bundler-configuration"
+      );
+    }
+  }
+
   const browser = await puppeteer.default.launch({
     args: Chromium.args,
-    executablePath: await Chromium.executablePath(),
+    executablePath,
     headless: true,
   });
 
