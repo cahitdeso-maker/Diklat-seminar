@@ -133,6 +133,7 @@ export async function getCertificateHtml(
   registrationId: string,
   seminarId: string,
   autoPrint: boolean = false,
+  search: string = "",
 ): Promise<string> {
   const [reg] = await db
     .select()
@@ -156,9 +157,17 @@ export async function getCertificateHtml(
     .where(and(eq(speakers.seminarId, seminarId), eq(speakers.isDeleted, false)))
     .orderBy(speakers.displayOrder);
 
-  const materialsList: MaterialItem[] = speakerMaterials
+  let materialsList: MaterialItem[] = speakerMaterials
     .filter((sm) => sm.topic && sm.topic.trim())
     .map((sm) => ({ topic: sm.topic!.trim() }));
+
+  // Apply search filter if provided
+  if (search) {
+    const searchLower = search.toLowerCase();
+    materialsList = materialsList.filter((m) =>
+      m.topic.toLowerCase().includes(searchLower),
+    );
+  }
 
   const [activeSignature] = await db
     .select()
