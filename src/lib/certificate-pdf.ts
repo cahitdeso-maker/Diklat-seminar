@@ -3,14 +3,13 @@ import { registrations, seminars, speakers, signatureSettings } from "./schema";
 import { eq, and } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
-import { launchBrowser } from "./puppeteer-browser";
 
 // Cache for inlined images to avoid re-reading from disk
 const imageCache = new Map<string, string>();
 
 /**
- * Read an image file from the public directory and convert to base64 data URI.
- * Caches results so images are only read once.
+ * Baca file gambar dari folder public dan konversi ke base64 data URI.
+ * Hasil di-cache untuk menghindari baca berulang.
  */
 function getImageDataUri(imagePath: string): string {
   if (imageCache.has(imagePath)) {
@@ -18,10 +17,9 @@ function getImageDataUri(imagePath: string): string {
   }
 
   try {
-    // Try both the absolute public path and the relative project path
     const publicDir = path.join(process.cwd(), "public");
     const fullPath = path.join(publicDir, imagePath.replace(/^\//, ""));
-    
+
     if (fs.existsSync(fullPath)) {
       const ext = path.extname(fullPath).toLowerCase();
       const mimeMap: Record<string, string> = {
@@ -42,30 +40,30 @@ function getImageDataUri(imagePath: string): string {
     console.warn(`Failed to load image: ${imagePath}`, err);
   }
 
-  // Return empty placeholder if image not found
   return "";
 }
 
 /**
- * Replace all image src attributes in HTML with inline base64 data URIs.
- * This ensures images load correctly when generating PDFs with Puppeteer
- * (since Puppeteer runs headless without a server to serve static files).
+ * Ganti semua src gambar relatif dengan inline base64 data URI.
+ * Ini penting karena Puppeteer via setContent() tidak memiliki server
+ * untuk melayani file statis.
  */
 export function inlineCertificateImages(html: string): string {
-  // Replace <img src="/img/..."> with inline data URIs
-  // Note: Ensures a space before src= even when src is the first attribute
   return html.replace(
     /<img([^>]*?)src="(\/[^"]+?)"/g,
     (_match, before, src) => {
+      // Jangan inline data URI (sudah inline)
+      if (src.startsWith("data:")) return _match;
       const dataUri = getImageDataUri(src);
       if (dataUri) {
         return `<img${before} src="${dataUri}"`;
       }
-      // Fallback: keep original src if image not found
       return `<img${before} src="${src}"`;
     },
   );
 }
+
+// ─── Type Definitions ───────────────────────────────────────────────────────
 
 export interface MaterialItem {
   name?: string;
@@ -87,7 +85,49 @@ export interface ParticipantData {
 }
 
 /**
- * Generate certificate HTML for a participant.
+ * Generate PDF certificate via HTML + Puppeteer.
+ * Pendekatan ini menghasilkan PDF yang IDENTIK dengan tampilan cetak di browser
+ * karena menggunakan rendering engine Chrome yang sama.
+ */
+export async function generateCertificatePdf(
+  registrationId: string,
+  seminarId: string,
+): Promise<Buffer> {
+  // Generate HTML certificate (reuse existing HTML template)
+  const html = await getCertificateHtml(registrationId, seminarId);
+
+  // Inline images as base64 data URIs (Puppeteer via setContent() tidak punya akses server)
+  const htmlWithInlineImages = inlineCertificateImages(html);
+
+  // Render HTML to PDF using Puppeteer
+  const { launchBrowser } = await import("./puppeteer-browser");
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1123, height: 794, deviceScaleFactor: 2 });
+    await page.setContent(htmlWithInlineImages, { waitUntil: "load" });
+
+    // Tunggu ekstra agar rendering sempurna (base64 images sudah inline, tidak perlu network)
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      landscape: true,
+      margin: { top: "0px", right: "0px", bottom: "0px", left: "0px" },
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+
+    return Buffer.from(pdfBuffer);
+  } finally {
+    await browser.close();
+  }
+}
+
+// ─── HTML Generation ────────────────────────────────────────────────────────
+
+/**
+ * Generate certificate HTML for browser display or Puppeteer PDF generation.
  */
 export async function getCertificateHtml(
   registrationId: string,
@@ -110,14 +150,13 @@ export async function getCertificateHtml(
 
   if (!seminar) throw new Error("Seminar tidak ditemukan");
 
-  // Ambil materi dari tabel speakers (topic)
   const speakerMaterials = await db
     .select({ topic: speakers.topic })
     .from(speakers)
     .where(and(eq(speakers.seminarId, seminarId), eq(speakers.isDeleted, false)))
     .orderBy(speakers.displayOrder);
 
-  const materialsList = speakerMaterials
+  const materialsList: MaterialItem[] = speakerMaterials
     .filter((sm) => sm.topic && sm.topic.trim())
     .map((sm) => ({ topic: sm.topic!.trim() }));
 
@@ -127,7 +166,6 @@ export async function getCertificateHtml(
     .where(eq(signatureSettings.isActive, true))
     .limit(1);
 
-  // Gunakan certificateCode yang sudah tersimpan di registrasi
   let certNumber = "";
   if (reg.certificateCode) {
     certNumber = reg.certificateCode.startsWith("NO : ")
@@ -135,11 +173,9 @@ export async function getCertificateHtml(
       : `NO : ${reg.certificateCode}`;
   } else {
     try {
-      const { generateCertificateNumber } = await import("@/lib/certificate-number");
+      const { generateCertificateNumber } = await import("./certificate-number");
       const result = await generateCertificateNumber(registrationId, seminarId);
-      certNumber = result.code.startsWith("NO : ")
-        ? result.code
-        : `NO : ${result.code}`;
+      certNumber = result.code.startsWith("NO : ") ? result.code : `NO : ${result.code}`;
     } catch {
       certNumber = "";
     }
@@ -173,32 +209,9 @@ export async function getCertificateHtml(
 }
 
 /**
- * Generate PDF buffer from certificate HTML.
- * Automatically inlines images as base64 data URIs before rendering.
+ * Generate HTML string untuk sertifikat.
+ * Template ini menghasilkan tampilan yang sama persis dengan cetakan yang sudah terbit.
  */
-export async function generateCertificatePdf(html: string): Promise<Buffer> {
-  // Inline images before rendering with Puppeteer
-  const htmlWithInlineImages = inlineCertificateImages(html);
-
-  const browser = await launchBrowser();
-  try {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1123, height: 794, deviceScaleFactor: 2 });
-    await page.setContent(htmlWithInlineImages, { waitUntil: "networkidle0" });
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      landscape: true,
-      margin: { top: "0px", right: "0px", bottom: "0px", left: "0px" },
-      printBackground: true,
-      preferCSSPageSize: true,
-    });
-    return Buffer.from(pdfBuffer);
-  } finally {
-    await browser.close();
-  }
-}
-
 export function generateCertificateHtml(
   name: string,
   title: string,

@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { registrations, seminars } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
-import { getCertificateHtml, inlineCertificateImages } from "@/lib/certificate-pdf";
-import { launchBrowser } from "@/lib/puppeteer-browser";
+import {
+  getCertificateHtml,
+  inlineCertificateImages,
+} from "@/lib/certificate-pdf";
 import { ZipArchive } from "archiver";
 
 /**
  * GET /api/certificates/download-all?seminarId=xxx
  *
  * Generates all certificates for a seminar as individual PDFs and bundles them into a ZIP file.
+ * Uses a SINGLE Puppeteer browser instance for all certificates (efficient).
  * Only includes participants who are present (isPresent = true).
  */
 export async function GET(request: Request) {
@@ -63,40 +66,36 @@ export async function GET(request: Request) {
       );
     }
 
-    // Launch puppeteer once and reuse for all participants
-    const browser = await launchBrowser();
-
-    // Set up archiver for ZIP output
+    // Setup ZIP archive
     const archive = new ZipArchive({
       zlib: { level: 6 },
     });
 
-    // Create a transform stream to capture the ZIP buffer
     const chunks: Buffer[] = [];
     archive.on("data", (chunk: Buffer) => chunks.push(chunk));
 
-    // Track progress for the response
     let successCount = 0;
     let failCount = 0;
 
+    // Launch ONE browser for all certificates
+    const { launchBrowser } = await import("@/lib/puppeteer-browser");
+    const browser = await launchBrowser();
+
     try {
-      // Generate each participant's certificate and add to ZIP
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1123, height: 794, deviceScaleFactor: 2 });
+
       for (const participant of participantList) {
         try {
-          const html = await getCertificateHtml(
-            participant.id,
-            seminarId,
-            false,
-          );
-
-          // Inline images as base64 data URIs before rendering with Puppeteer
+          // Generate HTML + inline images
+          const html = await getCertificateHtml(participant.id, seminarId);
           const htmlWithImages = inlineCertificateImages(html);
 
-          // Generate PDF using shared browser instance
-          const page = await browser.newPage();
-          await page.setViewport({ width: 1123, height: 794, deviceScaleFactor: 2 });
-          await page.setContent(htmlWithImages, { waitUntil: "networkidle0" });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          // Render to PDF via Puppeteer (reuse same page)
+          await page.setContent(htmlWithImages, { waitUntil: "load" });
+          // Tunggu rendering selesai (base64 images tidak perlu network request)
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
           const pdfBuffer = await page.pdf({
             format: "A4",
             landscape: true,
@@ -104,9 +103,8 @@ export async function GET(request: Request) {
             printBackground: true,
             preferCSSPageSize: true,
           });
-          await page.close();
 
-          // Clean filename: remove special chars, limit length
+          // Clean filename
           const safeName = participant.fullName
             .replace(/[^a-zA-Z0-9\s]/g, "")
             .replace(/\s+/g, "_")

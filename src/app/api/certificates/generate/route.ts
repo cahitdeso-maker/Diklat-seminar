@@ -123,7 +123,8 @@ export async function GET(request: Request) {
 
     if (format === "pdf") {
       try {
-        const pdfBuffer = await generateCertificatePdf(html);
+        // Generate PDF via HTML + Puppeteer (hasil identik dengan cetakan)
+        const pdfBuffer = await generateCertificatePdf(registrationId, seminarId);
         return new Response(pdfBuffer as unknown as Blob, {
           status: 200,
           headers: {
