@@ -2,18 +2,16 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { registrations, seminars } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
-import {
-  getCertificateHtml,
-  inlineCertificateImages,
-} from "@/lib/certificate-pdf";
+import { generateCertificatePdf } from "@/lib/certificate-pdf";
 import { ZipArchive } from "archiver";
 
 /**
  * GET /api/certificates/download-all?seminarId=xxx
  *
  * Generates all certificates for a seminar as individual PDFs and bundles them into a ZIP file.
- * Uses a SINGLE Puppeteer browser instance for all certificates (efficient).
- * Only includes participants who are present (isPresent = true).
+ * Menggunakan generateCertificatePdf() yang SAMA dengan cetak perorangan,
+ * sehingga hasil download IDENTIK dengan cetak.
+ * Hanya includes peserta yang sudah present (isPresent = true).
  */
 export async function GET(request: Request) {
   try {
@@ -46,7 +44,6 @@ export async function GET(request: Request) {
       .select({
         id: registrations.id,
         fullName: registrations.fullName,
-        certificateCode: registrations.certificateCode,
         certificateNumber: registrations.certificateNumber,
       })
       .from(registrations)
@@ -77,63 +74,33 @@ export async function GET(request: Request) {
     let successCount = 0;
     let failCount = 0;
 
-    // Launch ONE browser for all certificates (efficient),
-    // but create a NEW page per participant to match how
-    // generateCertificatePdf() works — preventing CSS/rendering
-    // state from carrying over between certificates.
-    const { launchBrowser } = await import("@/lib/puppeteer-browser");
-    const browser = await launchBrowser();
+    // Gunakan generateCertificatePdf() yang SAMA dengan cetak perorangan
+    // untuk memastikan hasil IDENTIK
+    for (const participant of participantList) {
+      try {
+        const pdfBuffer = await generateCertificatePdf(participant.id, seminarId);
 
-    try {
-      for (const participant of participantList) {
-        // Create a fresh page for each participant (same as generateCertificatePdf)
-        const page = await browser.newPage();
-        try {
-          await page.setViewport({ width: 1123, height: 794, deviceScaleFactor: 2 });
+        // Clean filename
+        const safeName = participant.fullName
+          .replace(/[^a-zA-Z0-9\s]/g, "")
+          .replace(/\s+/g, "_")
+          .substring(0, 80);
 
-          // Generate HTML + inline images
-          const html = await getCertificateHtml(participant.id, seminarId);
-          const htmlWithImages = inlineCertificateImages(html);
+        const certNum = participant.certificateNumber
+          ? `${String(participant.certificateNumber).padStart(2, "0")}_`
+          : "";
 
-          // Render to PDF via Puppeteer
-          await page.setContent(htmlWithImages, { waitUntil: "load" });
-          // Tunggu rendering selesai (base64 images tidak perlu network request)
-          await new Promise((resolve) => setTimeout(resolve, 500));
-
-          const pdfBuffer = await page.pdf({
-            format: "A4",
-            landscape: true,
-            margin: { top: "0px", right: "0px", bottom: "0px", left: "0px" },
-            printBackground: true,
-            preferCSSPageSize: true,
-          });
-
-          // Clean filename
-          const safeName = participant.fullName
-            .replace(/[^a-zA-Z0-9\s]/g, "")
-            .replace(/\s+/g, "_")
-            .substring(0, 80);
-
-          const certNum = participant.certificateNumber
-            ? `${String(participant.certificateNumber).padStart(2, "0")}_`
-            : "";
-
-          archive.append(Buffer.from(pdfBuffer), {
-            name: `sertifikat_${certNum}${safeName}.pdf`,
-          });
-          successCount++;
-        } catch (error) {
-          console.error(
-            `Failed to generate certificate for ${participant.fullName}:`,
-            error,
-          );
-          failCount++;
-        } finally {
-          await page.close();
-        }
+        archive.append(Buffer.from(pdfBuffer), {
+          name: `sertifikat_${certNum}${safeName}.pdf`,
+        });
+        successCount++;
+      } catch (error) {
+        console.error(
+          `Failed to generate certificate for ${participant.fullName}:`,
+          error,
+        );
+        failCount++;
       }
-    } finally {
-      await browser.close();
     }
 
     // Finalize the archive

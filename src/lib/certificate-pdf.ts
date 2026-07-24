@@ -235,6 +235,7 @@ export function generateCertificateHtml(
   const sigPosition = signature?.position;
   const sigNip = signature?.nip;
   const sigImage = signature?.signatureImage;
+  const formattedDate = date.replace(/^[^,]+,\s*/, "");
 
   const certPage = `<div class="page cert-page">
     <div class="header-wrap">
@@ -244,15 +245,17 @@ export function generateCertificateHtml(
       <div class="cert-center">
         ${certNumber ? `<div class="cert-number">${certNumber}</div>` : ""}
         <div class="cert-label">Diberikan Kepada :</div>
-        <div class="cert-name-wrap">
-          <div class="cert-name">${name}</div>
-          <div class="cert-underline"></div>
-        </div>
+        <div style="text-align:center;">
+      <div class="cert-name-wrap">
+        <div class="cert-name">${name}</div>
+        <div class="cert-underline"></div>
+      </div>
+      </div>
         <div class="cert-role-label">Sebagai :</div>
         <div class="cert-role-value">PESERTA</div>
         <div class="cert-description">
           Dinyatakan telah LULUS dalam<br>
-          ${title} pada tanggal ${date}<br>
+          ${title} pada tanggal ${formattedDate}<br>
           yang diselenggarakan di RS PKU Muhammadiyah Gombong
         </div>
         <div class="cert-signature">
@@ -318,30 +321,167 @@ export function generateCertificateHtml(
     .cert-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .cert-number { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 15px; }
     .cert-label { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 10px; }
-    .cert-name-wrap { width: 70%; text-align: center; margin-bottom: 20px; }
-    .cert-name { font-size: 34px; font-weight: bold; color: #000; padding-bottom: 10px; }
-    .cert-underline { position: relative; width: 65%; height: 6px; background: #033b5c; margin: 0 auto; }
-    .cert-underline::before, .cert-underline::after { position: absolute; top: 50%; transform: translateY(-50%); color: #033b5c; font-size: 18px; line-height: 1; font-weight: bold; }
-    .cert-underline::before { content: "▾▴▾▴▾▴▾▴"; position: absolute; left: -90px; letter-spacing: -6px; }
-    .cert-underline::after { content: "▾▴▾▴▾▴▾▴"; position: absolute; left: 260px; right: -30px; letter-spacing: -6px; }
+.cert-name-wrap {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    margin: 0 auto 20px;
+    text-align: center;
+}
+
+.cert-name {
+    display: inline-block;
+    align-self: center;
+    width: fit-content;
+    font-size: 34px;
+    font-weight: bold;
+    color: #000;
+    padding: 0 30px 10px;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+.cert-underline {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    background: #033b5c;
+    margin: 0 auto;
+}
+
+.cert-underline::before,
+.cert-underline::after {
+    content: "▾▴▾▴▾▴▾▴";
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #033b5c;
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: -6px;
+    line-height: 1;
+    background: #fff;
+    // padding: 0 4px;
+    z-index: 2;
+}
+
+.cert-underline::before {
+    right: 100%;
+    margin-right: 8px;
+}
+
+.cert-underline::after {
+    left: 100%;
+    margin-left: 0px;
+}
     .cert-role-label { font-size: 16px; font-weight: bold; color: #111; margin-bottom: 0px; }
     .cert-role-value { font-size: 26px; font-weight: bold; color: #0056B3; letter-spacing: 2px; margin-bottom: 20px; }
-    .cert-description { font-size: 20px; color: #000; text-align: center; max-width: 900px; line-height: 1.5; font-weight: bold; transform: translateY(-10px); }
-    .cert-signature { width: 100%; position: relative; display: flex; flex-direction: column; align-items: flex-end; transform: translateX(225px); text-align: center; font-size: 15px; color: #000; line-height: 1.5; }
-    .signature-date { text-align: left; margin-top: -10px; margin-bottom: 5px; width: 350px; }
-    .signature-position { width: 350px; margin-top: -10px; text-align: left; }
-    .signature-name { width: 350px; font-weight: bold; text-decoration: underline; margin-top: 100px; position: relative; text-align: left; }
-    .signature-nip { width: 350px; text-align: left; font-size: 13px; }
-    .signature-img { position: absolute; left: 15; top: 40px; width: 350px; max-height: 150px; object-fit: contain; display: block; margin-bottom: -35px; background: transparent; }
+    .cert-description { 
+              font-size: 20px; 
+              color: #000; 
+              text-align: center; 
+              max-width: 900px; 
+              line-height: 1.5; 
+              font-weight: bold; 
+              transform: translateY(-10px); }
+    .cert-signature { 
+              width: 100%; 
+              position: relative; 
+              display: flex; 
+              flex-direction: column; 
+              align-items: flex-end; 
+              transform: translateX(225px); 
+              text-align: center; 
+              font-size: 15px; 
+              color: #000; 
+              line-height: 1.5; }
+    .signature-date { 
+              text-align: left;
+              margin-top: -10px; 
+              margin-bottom: 5px;
+              width: 450px; }
+    .signature-position { 
+              width: 450px; 
+              margin-top: -10px; 
+              text-align: left; }
+    .signature-name { 
+              width: 450px; 
+              font-weight: bold; 
+              text-decoration: underline;
+              margin-top: 100px; 
+              position: relative; 
+              text-align: left; }
+    .signature-nip { 
+              width: 450px; 
+              text-align: left; 
+              font-size: 13px; }
+    .signature-img { 
+              position: absolute; 
+              left: 15; 
+              top: 40px; 
+              width: 350px; 
+              max-height: 150px; 
+              object-fit: contain; 
+              display: block; 
+              margin-bottom: -35px; 
+              background: transparent; }
     .footer-wrap { width: 100%; flex-shrink: 0; line-height: 0; }
     .footer-img { width: 100%; display: block; }
-    .materials-body { width: 100%; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px 80px; }
-    .materials-title { font-size: 28px; font-weight: bold; color: #033b5c; text-align: center; margin-bottom: 8px; text-transform: uppercase; }
-    .materials-table { width: 100%; border-collapse: collapse; font-size: 15px; }
-    .materials-table th { background-color: #033b5c; color: #fff; padding: 10px 14px; text-align: center; font-weight: bold; border: 1px solid #000; font-size: 16px; }
-    .materials-table td { padding: 8px 14px; text-align: center; border: 1px solid #000; color: #000; }
-    .materials-table .no-col { text-align: center; width: 50px; }
-    .materials-table tbody tr:nth-child(even) { background-color: #f2f8fc; }
+.materials-body {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 30px 80px;
+    box-sizing: border-box;
+}
+
+.materials-title {
+    width: 100%;
+    font-size: 28px;
+    font-weight: bold;
+    color: #033b5c;
+    text-align: center;
+    margin: 0 0 15px 0;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.materials-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+    table-layout: fixed;
+}
+
+.materials-table th {
+    background-color: #033b5c;
+    color: #fff;
+    padding: 10px 14px;
+    text-align: center;
+    font-weight: bold;
+    border: 1px solid #000;
+    font-size: 16px;
+}
+
+.materials-table td {
+    padding: 8px 14px;
+    text-align: center;
+    border: 1px solid #000;
+    color: #000;
+    vertical-align: top;
+}
+
+.materials-table .no-col {
+    width: 50px;
+    text-align: center;
+}
+
+.materials-table tbody tr:nth-child(even) {
+    background-color: #f2f8fc;
+}
     .no-print { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; gap: 12px; }
     .no-print button { padding: 14px 32px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 20px rgba(0,0,0,0.2); transition: transform 0.2s, box-shadow 0.2s; }
     .no-print button:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,0.3); }

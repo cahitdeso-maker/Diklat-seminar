@@ -303,7 +303,7 @@ export default function CheckinFormPage() {
                           name="fullName"
                           value={formData.fullName}
                           onChange={handleInputChange}
-                          placeholder="Masukkan nama lengkap"
+                          placeholder="Masukkan nama lengkap beserta gelar"
                           className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:border-emerald-400 outline-none focus:ring-2 focus:ring-emerald-50 transition-all"
                           required
                         />
@@ -441,45 +441,73 @@ export default function CheckinFormPage() {
         {/* STEP 2: Done */}
         {step === "done" && (
           <div className="animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-emerald-500 to-green-600 p-8 text-center">
-                <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <div className="bg-white rounded-3xl shadow-xl shadow-emerald-200/30 border border-emerald-100 overflow-hidden">
+              {/* Success Hero */}
+              <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-green-700 p-8 sm:p-10 text-center relative overflow-hidden">
+                {/* Decorative circles */}
+                <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full"></div>
+                <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-white/5 rounded-full"></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-60 h-60 bg-white/5 rounded-full"></div>
+                
+                {/* Animated checkmark */}
+                <div className="w-24 h-24 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-5 animate-bounce-subtle ring-4 ring-white/30">
+                  <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-1">Presensi Berhasil!</h2>
-                <p className="text-emerald-100 text-sm">{successMsg}</p>
+                <h2 className="text-3xl font-bold text-white mb-2">Presensi Berhasil! 🎉</h2>
+                <p className="text-emerald-100 text-sm max-w-xs mx-auto leading-relaxed">
+                  {successMsg}
+                </p>
               </div>
 
-              <div className="p-6 text-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-emerald-50 to-green-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1">{formData.fullName}</h3>
-                <p className="text-sm text-slate-500 mb-6">{seminar.title}</p>
+              {/* Participant Card */}
+              <div className="p-6 sm:p-8">
+                <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-5 sm:p-6 border border-emerald-100 mb-6">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200/50">
+                      <span className="text-white text-xl font-bold">
+                        {formData.fullName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-bold text-slate-800 truncate">{formData.fullName}</h3>
+                      <p className="text-sm text-slate-500 truncate">{seminar.title}</p>
+                    </div>
+                    <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
 
-                <div className="bg-emerald-50 rounded-xl p-4 mb-6 text-left space-y-2 text-sm">
-                  <p><span className="text-slate-400">Nama:</span> <span className="font-medium text-slate-800">{formData.fullName}</span></p>
-                  {formData.institution && <p><span className="text-slate-400">Institusi:</span> <span className="text-slate-700">{formData.institution}</span></p>}
-                  {formData.profession && <p><span className="text-slate-400">Profesi:</span> <span className="text-slate-700">{formData.profession}</span></p>}
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <button
-                    onClick={handleReset}
-                    className="w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all shadow-lg shadow-emerald-200/50"
-                  >
-                    Presensi Lagi
-                  </button>
-                  <Link
-                    href="/checkin"
-                    className="w-full py-3 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-all"
-                  >
-                    Kembali ke Seminar
-                  </Link>
+                  <div className="border-t border-emerald-200/50 pt-4 space-y-2.5">
+                    <div className="flex items-center gap-3 text-sm">
+                      <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-slate-500">Tanggal:</span>
+                      <span className="font-medium text-slate-700">{formatDate(seminar.date)}</span>
+                    </div>
+                    {formData.institution && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        <span className="text-slate-500">Institusi:</span>
+                        <span className="font-medium text-slate-700">{formData.institution}</span>
+                      </div>
+                    )}
+                    {formData.profession && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2-2v10a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-slate-500">Profesi:</span>
+                        <span className="font-medium text-slate-700">{formData.profession}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -491,7 +519,7 @@ export default function CheckinFormPage() {
       <footer className="border-t border-slate-200 mt-12">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <p className="text-center text-xs text-slate-400">
-            &copy; {new Date().getFullYear()} Diklat RS PKU Muhammadiyah Gombong. Sistem Presensi Medis Pintar.
+            &copy; {new Date().getFullYear()} Diklat RS PKU Muhammadiyah Gombong.
           </p>
         </div>
       </footer>
@@ -501,8 +529,15 @@ export default function CheckinFormPage() {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes bounceSubtle {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
         .animate-fadeIn {
           animation: fadeIn 0.4s ease-out;
+        }
+        .animate-bounce-subtle {
+          animation: bounceSubtle 1s ease-in-out infinite;
         }
       `}</style>
     </div>
