@@ -9,6 +9,7 @@ interface Seminar {
   title: string;
   description: string;
   date: string;
+  endDate: string;
   startTime: string;
   endTime: string;
   location: string;
@@ -38,6 +39,7 @@ const emptyForm = {
   title: "",
   description: "",
   date: "",
+  endDate: "",
   startTime: "",
   endTime: "",
   location: "",
@@ -83,14 +85,21 @@ export default function AdminSeminars() {
   const [confirmLoading, setConfirmLoading] = useState(false);
 
   const loadPresensiStatus = async (seminarId: string) => {
+    if (!seminarId) return;
     try {
-      const res = await fetch(`/api/seminars/${seminarId}/presensi-status`, { credentials: "include" });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`/api/seminars/${seminarId}/presensi-status`, {
+        credentials: "include",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const data = await res.json();
         setPresensiStatus(prev => ({ ...prev, [seminarId]: data.open === true }));
       }
-    } catch (e) {
-      console.error("Failed to load presensi status", e);
+    } catch {
+      // Silently handle - presensi status is non-critical UI feature
     }
   };
 
@@ -235,6 +244,7 @@ export default function AdminSeminars() {
       title: sem.title,
       description: sem.description || "",
       date: sem.date,
+      endDate: sem.endDate || "",
       startTime: sem.startTime || "",
       endTime: sem.endTime || "",
       location: sem.location || "",
@@ -619,7 +629,7 @@ export default function AdminSeminars() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Tanggal *
+                Tanggal Mulai *
               </label>
               <input
                 type="date"
@@ -627,6 +637,17 @@ export default function AdminSeminars() {
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
                 className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
                 required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Tanggal Sampai
+              </label>
+              <input
+                type="date"
+                value={form.endDate}
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:border-blue-400 outline-none"
               />
             </div>
             <div>
@@ -726,34 +747,51 @@ export default function AdminSeminars() {
                 👤 Daftar Pemateri
               </h4>
 
-              {speakersList.length > 0 && (
-                <div className="space-y-2 mb-3">
-                  {speakersList.map((sp) => (
-                    <div
-                      key={sp.id}
-                      className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5"
-                    >
-                      <div>
-                        <span className="font-medium text-slate-700 text-sm">
-                          {sp.name}
-                        </span>
-                        {sp.topic && (
-                          <span className="text-slate-400 text-xs ml-2">
-                            — {sp.topic}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => deleteSpeakerLocally(sp.id)}
-                        className="text-red-400 hover:text-red-600 text-xs"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                          {speakersList.length > 0 && (
+                            <div className="space-y-2 mb-3">
+                              {speakersList.map((sp) => (
+                                <div
+                                  key={sp.id}
+                                  className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5"
+                                >
+                                  <div className="flex flex-wrap items-center gap-2 flex-1 mr-2">
+                                    <input
+                                      type="text"
+                                      value={sp.name}
+                                      onChange={(e) => {
+                                        setSpeakersList((prev) =>
+                                          prev.map((s) =>
+                                            s.id === sp.id ? { ...s, name: e.target.value } : s
+                                          )
+                                        );
+                                      }}
+                                      className="flex-1 min-w-[120px] px-2 py-1 border border-slate-300 rounded-lg text-sm focus:border-indigo-400 outline-none"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={sp.topic || ""}
+                                      onChange={(e) => {
+                                        setSpeakersList((prev) =>
+                                          prev.map((s) =>
+                                            s.id === sp.id ? { ...s, topic: e.target.value || null } : s
+                                          )
+                                        );
+                                      }}
+                                      placeholder="Topik"
+                                      className="flex-1 min-w-[120px] px-2 py-1 border border-slate-300 rounded-lg text-sm focus:border-indigo-400 outline-none"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteSpeakerLocally(sp.id)}
+                                    className="text-red-400 hover:text-red-600 text-xs shrink-0"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
               <div className="flex flex-wrap gap-2">
                 <input
@@ -884,7 +922,7 @@ export default function AdminSeminars() {
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-slate-700 mb-1">
-                            Tanggal *
+                            Tanggal Mulai *
                           </label>
                           <input
                             type="date"
@@ -894,6 +932,19 @@ export default function AdminSeminars() {
                             }
                             className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-indigo-400 outline-none"
                             required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Tanggal Selesai
+                          </label>
+                          <input
+                            type="date"
+                            value={form.endDate}
+                            onChange={(e) =>
+                              setForm({ ...form, endDate: e.target.value })
+                            }
+                            className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-indigo-400 outline-none"
                           />
                         </div>
                         <div>
@@ -1007,20 +1058,37 @@ export default function AdminSeminars() {
                                   key={sp.id}
                                   className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5"
                                 >
-                                  <div>
-                                    <span className="font-medium text-slate-700 text-sm">
-                                      {sp.name}
-                                    </span>
-                                    {sp.topic && (
-                                      <span className="text-slate-400 text-xs ml-2">
-                                        — {sp.topic}
-                                      </span>
-                                    )}
+                                  <div className="flex flex-wrap items-center gap-2 flex-1 mr-2">
+                                    <input
+                                      type="text"
+                                      value={sp.name}
+                                      onChange={(e) => {
+                                        setSpeakersList((prev) =>
+                                          prev.map((s) =>
+                                            s.id === sp.id ? { ...s, name: e.target.value } : s
+                                          )
+                                        );
+                                      }}
+                                      className="flex-1 min-w-[120px] px-2 py-1 border border-slate-300 rounded-lg text-sm focus:border-indigo-400 outline-none"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={sp.topic || ""}
+                                      onChange={(e) => {
+                                        setSpeakersList((prev) =>
+                                          prev.map((s) =>
+                                            s.id === sp.id ? { ...s, topic: e.target.value || null } : s
+                                          )
+                                        );
+                                      }}
+                                      placeholder="Topik"
+                                      className="flex-1 min-w-[120px] px-2 py-1 border border-slate-300 rounded-lg text-sm focus:border-indigo-400 outline-none"
+                                    />
                                   </div>
                                   <button
                                     type="button"
                                     onClick={() => deleteSpeakerLocally(sp.id)}
-                                    className="text-red-400 hover:text-red-600 text-xs"
+                                    className="text-red-400 hover:text-red-600 text-xs shrink-0"
                                   >
                                     ✕
                                   </button>
@@ -1118,7 +1186,7 @@ export default function AdminSeminars() {
                           )}
                       </div>
                         <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
-                          <div><span className="font-medium text-slate-700">Tanggal:</span> {sem.date}</div>
+                          <div><span className="font-medium text-slate-700">Tanggal:</span> {sem.date}{sem.endDate ? ` - ${sem.endDate}` : ""}</div>
                           <div><span className="font-medium text-slate-700">Mulai:</span> {sem.startTime || "-"}</div>
                           <div><span className="font-medium text-slate-700">Selesai:</span> {sem.endTime || "-"}</div>
                           <div><span className="font-medium text-slate-700">Lokasi:</span> {sem.location || "-"}</div>
@@ -1196,7 +1264,7 @@ export default function AdminSeminars() {
                             )}
                         </div>
                         <p className="text-xs text-slate-500 mt-1">
-                          {sem.date} {sem.startTime && `| ${sem.startTime}`}{" "}
+                          {sem.date}{sem.endDate ? ` - ${sem.endDate}` : ""} {sem.startTime && `| ${sem.startTime}`}{" "}
                           {sem.location && `| ${sem.location}`}
                         </p>
                         {speakersText && (

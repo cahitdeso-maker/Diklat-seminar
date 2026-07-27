@@ -192,12 +192,16 @@ export async function getCertificateHtml(
 
   const seminarDate = new Date(seminar.date);
   const options: Intl.DateTimeFormatOptions = {
-    weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   };
-  const tanggalStr = seminarDate.toLocaleDateString("id-ID", options);
+  let tanggalStr = seminarDate.toLocaleDateString("id-ID", options);
+  if (seminar.endDate) {
+    const seminarEndDate = new Date(seminar.endDate);
+    const endDateStr = seminarEndDate.toLocaleDateString("id-ID", options);
+    tanggalStr = `${tanggalStr} Sampai Dengan ${endDateStr}`;
+  }
 
   return generateCertificateHtml(
     reg.fullName,
