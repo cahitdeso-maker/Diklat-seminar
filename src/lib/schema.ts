@@ -48,7 +48,6 @@ export const seminars = pgTable("seminars", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   date: date("date").notNull(),
-  startDate: date("start_date"),
   endDate: date("end_date"),
   startTime: varchar("start_time", { length: 10 }),
   endTime: varchar("end_time", { length: 10 }),

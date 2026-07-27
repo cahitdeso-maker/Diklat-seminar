@@ -300,7 +300,6 @@ export default function AdminSeminars() {
         const payload = {
           ...form,
           endDate: form.endDate || null,
-          startDate: null,
           startTime: form.startTime || null,
           endTime: form.endTime || null,
           location: form.location || null,
