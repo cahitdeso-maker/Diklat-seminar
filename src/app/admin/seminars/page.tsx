@@ -297,10 +297,19 @@ export default function AdminSeminars() {
       let seminarId = editingId;
 
       if (isEdit) {
+        const payload = {
+          ...form,
+          endDate: form.endDate || null,
+          startDate: null,
+          startTime: form.startTime || null,
+          endTime: form.endTime || null,
+          location: form.location || null,
+          description: form.description || null,
+        };
         const res = await fetch(`/api/seminars?id=${editingId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok) {
