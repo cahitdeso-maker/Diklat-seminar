@@ -390,7 +390,7 @@ export function generateCertificateHtml(
               display: flex; 
               flex-direction: column; 
               align-items: flex-end; 
-              transform: translateX(225px); 
+              transform: translateX(250px); 
               text-align: center; 
               font-size: 15px; 
               color: #000; 
@@ -412,13 +412,15 @@ export function generateCertificateHtml(
               position: relative; 
               text-align: left; }
     .signature-nip { 
-              width: 450px; 
+              width: 450px;
+              font-weight: bold;
+              text-decoration: underline;
               text-align: left; 
               font-size: 13px; }
     .signature-img { 
               position: absolute; 
-              left: 15; 
-              top: 40px; 
+              left: 200px; 
+              top: 30px; 
               width: 350px; 
               max-height: 150px; 
               object-fit: contain; 
