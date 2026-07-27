@@ -254,13 +254,20 @@ export function generateCertificateHtml(
         <div class="cert-role-label">Sebagai :</div>
         <div class="cert-role-value">PESERTA</div>
         <div class="cert-description">
-          Dinyatakan telah LULUS dalam<br>
-          ${title} pada tanggal ${formattedDate}<br>
-          yang diselenggarakan di RS PKU Muhammadiyah Gombong
+        <div class="cert-header">
+            Dinyatakan telah LULUS dalam
         </div>
+        <div class="cert-title">
+            ${title}
+        </div>
+        <div class="cert-footer">
+           pada tanggal ${formattedDate} yang diselenggarakan di RS PKU Muhammadiyah Gombong
+        </div>
+    </div>
         <div class="cert-signature">
           <div class="signature-date">Gombong, ${date.split(",").pop()?.trim() || date}</div>
-          ${sigPosition ? `<div class="signature-position">${sigPosition}</div>` : ""}
+         <div class="signature-position-wrapper">
+          ${sigPosition ? `<div class="signature-position">${sigPosition}</div>` : ""}</div>
           <div class="signature-space ${sigImage ? "has-signature" : ""}"></div>
           ${sigImage ? `<img src="${sigImage}" alt="Tanda Tangan" class="signature-img" />` : ""}
           ${sigName ? `<div class="signature-name">${sigName}</div>` : ""}
@@ -317,73 +324,92 @@ export function generateCertificateHtml(
     .page-break { break-before: page; page-break-before: always; }
     .header-wrap { width: 100%; flex-shrink: 0; }
     .header-img { width: 100%; display: block; }
-    .cert-body { position: relative; width: 100%; flex: 1; display: flex; flex-direction: column; align-items: center; padding: 0 80px; }
-    .cert-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .cert-number { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 15px; }
-    .cert-label { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 10px; }
-.cert-name-wrap {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: stretch;
-    margin: 0 auto 20px;
-    text-align: center;
-}
+    .cert-body { 
+          position: relative; 
+          width: 100%; flex: 1; 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          padding: 0 80px; }
+    .cert-center { flex: 1; 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          justify-content: center; }
+    .cert-number {
+          font-size: 18px;
+          font-weight: bold;
+          color: #111;
+          margin-bottom: 15px;
+          position: relative;
+          top: -20px; }
+    .cert-label { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 10px; margin-top: -18px; }
+    .cert-name-wrap {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: stretch;
+          margin: 0 auto 20px;
+          text-align: center; }
+    .cert-name {
+          display: inline-block;
+          align-self: center;
+          width: fit-content;
+          font-size: 34px;
+          font-weight: bold;
+          color: #000;
+          padding: 0 30px 10px;
+          white-space: nowrap;
+          line-height: 1.2; }
+    .cert-underline {
+          position: relative;
+          width: 100%;
+          height: 6px;
+          background: #033b5c;
+          margin: 0 auto; }
+    .cert-underline::before,
+    .cert-underline::after {
+          content: "▾▴▾▴▾▴▾▴";
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #033b5c;
+          font-size: 18px;
+          font-weight: bold;
+          letter-spacing: -6px;
+          line-height: 1;
+          background: #fff;
+          // padding: 0 4px;
+          z-index: 2; }
 
-.cert-name {
-    display: inline-block;
-    align-self: center;
-    width: fit-content;
-    font-size: 34px;
-    font-weight: bold;
-    color: #000;
-    padding: 0 30px 10px;
-    white-space: nowrap;
-    line-height: 1.2;
-}
-
-.cert-underline {
-    position: relative;
-    width: 100%;
-    height: 6px;
-    background: #033b5c;
-    margin: 0 auto;
-}
-
-.cert-underline::before,
-.cert-underline::after {
-    content: "▾▴▾▴▾▴▾▴";
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #033b5c;
-    font-size: 18px;
-    font-weight: bold;
-    letter-spacing: -6px;
-    line-height: 1;
-    background: #fff;
-    // padding: 0 4px;
-    z-index: 2;
-}
-
-.cert-underline::before {
-    right: 100%;
-    margin-right: 8px;
-}
-
-.cert-underline::after {
-    left: 100%;
-    margin-left: 0px;
-}
-    .cert-role-label { font-size: 16px; font-weight: bold; color: #111; margin-bottom: 0px; }
+    .cert-underline::before {
+          right: 100%;
+          margin-right: 8px; }
+    .cert-underline::after {
+          left: 100%;
+          margin-left: 0px; }
+    .cert-role-label { font-size: 16px; font-weight: bold; color: #111; margin-bottom: 0px; margin-top: -5px; }
     .cert-role-value { font-size: 26px; font-weight: bold; color: #0056B3; letter-spacing: 2px; margin-bottom: 20px; }
-    .cert-description { 
-              font-size: 20px; 
-              color: #000; 
-              text-align: center; 
-              max-width: 900px; 
-              line-height: 1.5; 
-              font-weight: bold; 
-              transform: translateY(-10px); }
+    .cert-description {
+            width: 93%;
+            margin: 0 auto;
+            text-align: center;
+            color: #000;
+            font-weight: bold;
+            line-height: 1.4; }
+    .cert-header {
+            font-size: 20px;
+            margin-top: -10px;
+            // margin-bottom: 2px; }
+    .cert-title {
+            display: inline;
+            max-width: 1100px;
+            font-size: 20px;
+            line-height: 1.4;
+            // margin-bottom: 8px; }
+    .cert-footer {
+            display: inline;
+            font-size: 20px;
+            line-height: 1.4; }
     .cert-signature { 
               width: 100%; 
               position: relative; 
@@ -394,39 +420,54 @@ export function generateCertificateHtml(
               text-align: center; 
               font-size: 15px; 
               color: #000; 
-              line-height: 1.5; }
+              line-height: 1.5;
+              position: relative; }
     .signature-date { 
+              width: 600px;
               text-align: left;
-              margin-top: -10px; 
+              margin-top: 10px; 
               margin-bottom: 5px;
-              width: 450px; }
+              position: relative; }
+    .signature-position-wrapper {
+              width: 600px;
+              display: flex;
+              margin-top: 8px;
+              margin-bottom: -40px;
+              position: relative;
+              text-align: left; 
+              z-index: 4;}          
     .signature-position { 
               width: 450px; 
               margin-top: -10px; 
-              text-align: left; }
+              text-align: left;
+              position: relative; }
     .signature-name { 
-              width: 450px; 
+              width: 600px; 
               font-weight: bold; 
               text-decoration: underline;
               margin-top: 100px; 
               position: relative; 
-              text-align: left; }
+              text-align: left; 
+              z-index: 4;}
     .signature-nip { 
-              width: 450px;
+              width: 600px;
               font-weight: bold;
               text-decoration: underline;
               text-align: left; 
-              font-size: 13px; }
+              font-size: 13px;
+              position: relative; 
+              z-index: 2;}
     .signature-img { 
               position: absolute; 
-              left: 200px; 
+              left: 300px; 
               top: 30px; 
               width: 350px; 
               max-height: 150px; 
               object-fit: contain; 
               display: block; 
               margin-bottom: -35px; 
-              background: transparent; }
+              background: transparent; 
+              z-index: 1; }
     .footer-wrap { width: 100%; flex-shrink: 0; line-height: 0; }
     .footer-img { width: 100%; display: block; }
 .materials-body {
