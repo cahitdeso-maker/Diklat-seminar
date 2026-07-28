@@ -197,10 +197,12 @@ export async function getCertificateHtml(
     day: "numeric",
   };
   let tanggalStr = seminarDate.toLocaleDateString("id-ID", options);
+  let signatureDateStr = tanggalStr;
   if (seminar.endDate) {
     const seminarEndDate = new Date(seminar.endDate);
     const endDateStr = seminarEndDate.toLocaleDateString("id-ID", options);
-    tanggalStr = `${tanggalStr} Sampai Dengan ${endDateStr}`;
+    tanggalStr = `${tanggalStr} sampai dengan ${endDateStr}`;
+    signatureDateStr = endDateStr;
   }
 
   return generateCertificateHtml(
@@ -210,6 +212,7 @@ export async function getCertificateHtml(
     materialsList,
     autoPrint,
     certNumber,
+    signatureDateStr,
     activeSignature
       ? {
           name: activeSignature.name,
@@ -232,6 +235,7 @@ export function generateCertificateHtml(
   materials: MaterialItem[] = [],
   autoPrint: boolean = false,
   certNumber: string = "",
+  signatureDate: string = "",
   signature?: SignatureData,
 ): string {
   const hasMaterials = materials.length > 0;
@@ -269,7 +273,7 @@ export function generateCertificateHtml(
         </div>
     </div>
         <div class="cert-signature">
-          <div class="signature-date">Gombong, ${date.split(",").pop()?.trim() || date}</div>
+          <div class="signature-date">Gombong, ${signatureDate || date}</div>
          <div class="signature-position-wrapper">
           ${sigPosition ? `<div class="signature-position">${sigPosition}</div>` : ""}</div>
           <div class="signature-space ${sigImage ? "has-signature" : ""}"></div>
@@ -346,7 +350,7 @@ export function generateCertificateHtml(
           color: #111;
           margin-bottom: 15px;
           position: relative;
-          top: -20px; }
+          top: -10px; }
     .cert-label { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 10px; margin-top: -18px; }
     .cert-name-wrap {
           display: inline-flex;
@@ -431,7 +435,8 @@ export function generateCertificateHtml(
               text-align: left;
               margin-top: 10px; 
               margin-bottom: 5px;
-              position: relative; }
+              position: relative;
+              z-index: 5; }
     .signature-position-wrapper {
               width: 600px;
               display: flex;
@@ -449,14 +454,13 @@ export function generateCertificateHtml(
               width: 600px; 
               font-weight: bold; 
               text-decoration: underline;
-              margin-top: 100px; 
+              margin-top: 130px; 
               position: relative; 
               text-align: left; 
               z-index: 4;}
     .signature-nip { 
               width: 600px;
               font-weight: bold;
-              text-decoration: underline;
               text-align: left; 
               font-size: 13px;
               position: relative; 
@@ -464,7 +468,7 @@ export function generateCertificateHtml(
     .signature-img { 
               position: absolute; 
               left: 300px; 
-              top: 30px; 
+              top: 10px; 
               width: 350px; 
               max-height: 150px; 
               object-fit: contain; 
