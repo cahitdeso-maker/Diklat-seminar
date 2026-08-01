@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "db:init": "npx tsx src/lib/init-db.ts",
@@ -17,6 +17,7 @@
     "@vladmandic/face-api": "^1.7.15",
     "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "html-to-image": "^1.11.13",
     "mysql2": "^3.22.3",

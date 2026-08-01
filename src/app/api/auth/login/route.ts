@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
     response.cookies.set("session", sessionData, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.COOKIE_SECURE === "true",
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     // Non-httpOnly cookie for client-side auth check
     response.cookies.set("auth_session", sessionData, {
       httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.COOKIE_SECURE === "true",
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
