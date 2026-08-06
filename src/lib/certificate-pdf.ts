@@ -10,6 +10,8 @@ import sharp from "sharp";
 const imageCache = new Map<string, string>();
 // Cache hasil proses tanda tangan (nama file unik per upload → aman di-cache)
 const processedSignatureCache = new Map<string, string>();
+// Clear cache on module load agar gambar diproses ulang dengan parameter baru
+processedSignatureCache.clear();
 
 // ─── Google Fonts helper (Noto Sans untuk karakter ▾▴) ──────────────────
 // Di-fetch SEKALI dan di-cache di module level supaya tidak fetch ulang per peserta.
@@ -96,10 +98,10 @@ async function getProcessedSignatureDataUri(imagePath: string): Promise<string> 
     const channels = info.channels; // 3 (RGB) setelah toColourspace
 
     // 2. Hitung kepekatan tinta tiap piksel = jarak Euclidean dari putih.
-    //    - dist < 18 → noise putih, transparan penuh
-    //    - dist < 60 → tepi anti-alias, alpha gradual (×2.2)
-    //    - dist ≥ 60 → tinta jelas, OPAQUE PENUH (biar tebal, tidak tercuci)
-    //    Warna RGB tetap mengikuti file upload.
+    //    - dist < 12 → noise putih, transparan penuh
+    //    - dist < 40 → tepi anti-alias, alpha gradual (×4.0)
+    //    - dist ≥ 40 → tinta jelas, OPAQUE PENUH (biar tebal, tidak tercuci)
+    //    Warna RGB tetap mengikuti file upload, dengan kontras ditingkatkan.
     const alphaMap = new Uint8Array(w * h);
     const SQRT3 = Math.sqrt(3);
     for (let i = 0; i < w * h; i++) {
@@ -110,13 +112,13 @@ async function getProcessedSignatureDataUri(imagePath: string): Promise<string> 
       const dg = 255 - g;
       const db = 255 - b;
       const dist = Math.sqrt(dr * dr + dg * dg + db * db) / SQRT3; // 0..255
-      const base = dist < 18 ? 0 : Math.min(255, Math.round((dist - 18) * 2.2));
-      alphaMap[i] = dist >= 60 && base > 0 ? 255 : base;
+      const base = dist < 8 ? 0 : Math.min(255, Math.round((dist - 8) * 6.0));
+      alphaMap[i] = dist >= 0 && base > 0 ? 255 : base;
     }
 
-    // 3. Pertebal goresan & pekatkan warna: joint max-filter 3×3 (dilasi).
-    //    Setiap piksel mengadopsi warna piksel tinta terkuat di sekitarnya, lalu
-    //    digelapkan sedikit (tinta penuh → ×0.7) — goresan lebih tebal & warna pekat.
+    // 3. Pertebal goresan & pertahankan warna: joint max-filter 3×3 (dilasi).
+    //    Setiap piksel mengadopsi warna piksel tinta terkuat di sekitarnya
+    //    dengan kontras ditingkatkan agar warna lebih jelas dan vivid.
     const rgba = Buffer.alloc(w * h * 4);
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
@@ -137,10 +139,14 @@ async function getProcessedSignatureDataUri(imagePath: string): Promise<string> 
         }
         const outIdx = y * w + x;
         const src = bestIdx * channels;
-        const darken = 1 - 0.3 * (bestA / 255); // tinta penuh → ×0.7, background → ×1
-        rgba[outIdx * 4] = Math.min(255, Math.round(data[src] * darken));
-        rgba[outIdx * 4 + 1] = Math.min(255, Math.round(data[src + 1] * darken));
-        rgba[outIdx * 4 + 2] = Math.min(255, Math.round(data[src + 2] * darken));
+        // Tingkatkan kontras warna: jauhi warna putih agar lebih jelas
+        const contrastFactor = 1.0;
+        const r = Math.min(255, Math.max(0, Math.round(((data[src] - 128) * contrastFactor) + 128)));
+        const g = Math.min(255, Math.max(0, Math.round(((data[src + 1] - 128) * contrastFactor) + 128)));
+        const b = Math.min(255, Math.max(0, Math.round(((data[src + 2] - 128) * contrastFactor) + 128)));
+        rgba[outIdx * 4] = r;
+        rgba[outIdx * 4 + 1] = g;
+        rgba[outIdx * 4 + 2] = b;
         rgba[outIdx * 4 + 3] = bestA;
       }
     }
@@ -826,14 +832,16 @@ export function generateCertificateHtml(
               width: 300px;
               text-align: left;
               margin-top: 10px; 
-              margin-bottom: 5px; }
+              margin-bottom: 5px;
+              z-index: 4; }
     .signature-position-wrapper {
               width: 300px;
               display: flex;
               margin-top: 8px;
               margin-bottom: -40px;
               text-align: left; 
-              white-space: nowrap;}          
+              white-space: nowrap;
+              z-index: 5;}          
     .signature-position { 
               width: 300px; 
               margin-top: -10px; 
@@ -850,13 +858,15 @@ export function generateCertificateHtml(
               font-weight: bold;
               text-align: left; 
               font-size: 13px; }
-    .signature-img { 
+       .signature-img { 
               position: absolute; 
               right: 30px;
-              top: 35px; 
+              top: 10px; 
               width: 500px; 
-              max-height: 120px; 
-              object-fit: contain; 
+              max-height: 150px; 
+              object-fit: contain;
+              background: transparent;
+              z-index: 3; 
               display: block;}
     .footer-wrap { width: 100%; flex-shrink: 0; line-height: 0; }
     .footer-img { width: 100%; display: block; }

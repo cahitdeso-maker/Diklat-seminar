@@ -91,8 +91,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const speakerName = (formData.get("speakerName") as string) || "";
-    const material = await saveMaterialFile(file, seminarId, speakerName);
+    // speakerNames dikirim sebagai JSON array (mis. '["dr. A", "dr. B"]')
+    let speakerNames: string[] = [];
+    const rawSpeakerNames = formData.get("speakerNames") as string;
+    if (rawSpeakerNames) {
+      try {
+        const parsed = JSON.parse(rawSpeakerNames);
+        if (Array.isArray(parsed)) {
+          speakerNames = parsed.filter((n) => typeof n === "string");
+        }
+      } catch {
+        // fallback ke format lama: string dipisah koma
+        speakerNames = rawSpeakerNames.split(",").map((s) => s.trim());
+      }
+    }
+    const material = await saveMaterialFile(file, seminarId, speakerNames);
 
     // Simpan metadata
     const materials = await getMaterials(seminarId);
@@ -133,9 +146,19 @@ export async function PATCH(request: Request) {
       );
     }
 
-    if (!body.speakerName) {
+    // Terima array speakerNames (format baru) atau string speakerName (format lama)
+    let speakerNames: string[] = [];
+    if (Array.isArray(body.speakerNames)) {
+      speakerNames = body.speakerNames.filter(
+        (n: unknown) => typeof n === "string",
+      );
+    } else if (typeof body.speakerName === "string" && body.speakerName.trim()) {
+      speakerNames = body.speakerName.split(",").map((s: string) => s.trim());
+    }
+
+    if (speakerNames.length === 0) {
       return NextResponse.json(
-        { error: "speakerName harus diisi" },
+        { error: "speakerNames harus diisi" },
         { status: 400 },
       );
     }
@@ -150,8 +173,12 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // Update speaker name
-    material.speakerName = body.speakerName;
+    // Update speaker names (array unik)
+    const uniqueNames = Array.from(
+      new Set(speakerNames.map((n) => n.trim()).filter(Boolean)),
+    );
+    material.speakerNames = uniqueNames;
+    material.speakerName = uniqueNames.join(", ");
     await saveMaterials(seminarId, materials);
 
     return NextResponse.json({

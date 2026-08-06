@@ -4,7 +4,6 @@ import { seminars } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 
 // GET /api/seminars/[seminarId]/presensi-status - Public endpoint to check if presensi is open for a seminar
-// GET /api/seminars/[seminarId]/presensi-status - Public endpoint to check if presensi is open for a seminar
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ seminarId: string }> }

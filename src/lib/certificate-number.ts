@@ -284,6 +284,33 @@ export async function updateCertificateNumber(
 }
 
 /**
+ * Ambil nomor sertifikat terbesar yang pernah dikeluarkan dari log
+ * (isConfig = false). Opsional difilter per tahun untuk kasus reset per_tahun.
+ * Dipakai oleh certificate-settings dan fungsi-fungsi di file ini.
+ */
+export async function getLastCertificateNumber(
+  year?: string,
+): Promise<number> {
+  const conditions = [
+    eq(certificateNumberSettings.isConfig, false),
+    eq(certificateNumberSettings.isDeleted, false),
+  ];
+
+  if (year != null && year !== "") {
+    conditions.push(eq(certificateNumberSettings.year, year));
+  }
+
+  const [result] = await db
+    .select({
+      maxVal: sql<number>`COALESCE(MAX(${certificateNumberSettings.certificateNumber}), 0)`,
+    })
+    .from(certificateNumberSettings)
+    .where(and(...conditions));
+
+  return result?.maxVal ?? 0;
+}
+
+/**
  * Reset penomoran: cukup update config row's nextCertificateNumber override.
  */
 export async function resetCertificateNumber(

@@ -9,7 +9,8 @@ interface Material {
   url: string;
   size: number;
   type: string;
-  speakerName: string;
+  speakerNames?: string[];
+  speakerName?: string;
   uploadedAt: string;
 }
 
@@ -67,10 +68,12 @@ export default function MaterialsPage() {
       const res = await fetch(`/api/speakers?seminarId=${seminarId}`);
       if (res.ok) {
         const data: Speaker[] = await res.json();
+        // Dedupe by name: tabel speakers bisa berisi nama yang sama berkali-kali
+        const uniqueNames = Array.from(new Set(data.map((sp) => sp.name)));
         setSpeakers(data);
-        // Auto-select all speakers as default
-        if (data.length > 0) {
-          setSelectedSpeakerNames(data.map((sp) => sp.name));
+        // Auto-select all speakers as default (unik per nama)
+        if (uniqueNames.length > 0) {
+          setSelectedSpeakerNames(uniqueNames);
         }
         return data;
       } else {
@@ -115,7 +118,11 @@ export default function MaterialsPage() {
     const formData = new FormData();
     formData.append("seminarId", selectedSeminarId);
     formData.append("file", fileInputRef.current.files[0]);
-    formData.append("speakerName", selectedSpeakerNames.join(", "));
+    // Kirim sebagai JSON array agar nama yang mengandung koma tidak pecah
+    formData.append(
+      "speakerNames",
+      JSON.stringify(Array.from(new Set(selectedSpeakerNames))),
+    );
 
     try {
       const res = await fetch("/api/materials", {
@@ -137,13 +144,58 @@ export default function MaterialsPage() {
     }
   };
 
+  const getSpeakerNames = (material: Material): string[] => {
+    const known = Array.from(new Set(speakers.map((sp) => sp.name))).sort(
+      (a, b) => b.length - a.length,
+    );
+
+    let candidates: string[] = [];
+    if (Array.isArray(material.speakerNames) && material.speakerNames.length > 0) {
+      candidates = material.speakerNames;
+    } else if (material.speakerName) {
+      // Legacy: data lama berupa string yang bisa berisi koma di dalam nama
+      // (mis. "dr. Desatya Rossa Amygha, MM"). Cocokkan dengan daftar speaker
+      // yang ada agar tidak pecah jadi potongan yang salah.
+      let rest = material.speakerName;
+      const matched: string[] = [];
+      for (const name of known) {
+        if (rest.includes(name)) {
+          matched.push(name);
+          rest = rest.replace(name, "");
+        }
+      }
+      candidates = [
+        ...matched,
+        ...rest.split(",").map((s) => s.trim()).filter(Boolean),
+      ];
+    }
+
+    // Jika tidak ada speaker yang dikenali, tampilkan string lama apa adanya
+    if (known.length === 0) {
+      return candidates.filter(Boolean);
+    }
+
+    // Gabungkan potongan nama (mis. "MM", "S.Kep.Ners") kembali ke nama lengkap
+    const merged = new Set<string>();
+    for (const cand of candidates) {
+      const full =
+        known.find((k) => k === cand) ||
+        known.find((k) => k.includes(cand) && cand.length >= 3);
+      merged.add(full || cand);
+    }
+
+    // Bersihkan sisa potongan yang merupakan bagian dari nama lengkap yang sudah
+    // ter-merge (mis. "MM" dari "dr. Desatya Rossa Amygha, MM")
+    const mergedArr = Array.from(merged);
+    return mergedArr.filter(
+      (name) =>
+        !mergedArr.some((other) => other !== name && other.includes(name)),
+    );
+  };
+
   const handleEditSpeaker = (material: Material) => {
     setEditingMaterialId(material.id);
-    setEditingSpeakerNames(
-      material.speakerName
-        ? material.speakerName.split(", ").filter(Boolean)
-        : [],
-    );
+    setEditingSpeakerNames(Array.from(new Set(getSpeakerNames(material))));
   };
 
   const handleSaveSpeaker = async () => {
@@ -156,7 +208,9 @@ export default function MaterialsPage() {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ speakerName: editingSpeakerNames.join(", ") }),
+          body: JSON.stringify({
+            speakerNames: Array.from(new Set(editingSpeakerNames)),
+          }),
         },
       );
       const data = await res.json();
@@ -181,12 +235,18 @@ export default function MaterialsPage() {
   const filteredMaterials = materials.filter((m) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
+    const speakerText = getSpeakerNames(m).join(", ").toLowerCase();
     return (
       m.originalName?.toLowerCase().includes(q) ||
-      m.speakerName?.toLowerCase().includes(q) ||
+      speakerText.includes(q) ||
       m.type?.toLowerCase().includes(q)
     );
   });
+
+  // Dedupe speakers by name for rendering checkbox lists
+  const uniqueSpeakers = speakers.filter(
+    (sp, i, arr) => arr.findIndex((s) => s.name === sp.name) === i,
+  );
 
   const handleDelete = async (material: Material) => {
     if (!confirm(`Hapus materi "${material.originalName}"?`)) return;
@@ -294,12 +354,12 @@ export default function MaterialsPage() {
                     👤 Pilih Pemateri (bisa lebih dari satu)
                   </label>
                   <div className="max-h-40 overflow-y-auto border border-slate-300 rounded-xl p-2 space-y-1">
-                    {speakers.length === 0 && (
+                    {uniqueSpeakers.length === 0 && (
                       <p className="text-xs text-slate-400 text-center py-2">
                         Belum ada pemateri
                       </p>
                     )}
-                    {speakers.map((sp) => (
+                    {uniqueSpeakers.map((sp) => (
                       <label
                         key={sp.id}
                         className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-sm transition-all ${
@@ -383,12 +443,12 @@ export default function MaterialsPage() {
                           <span className="inline-flex flex-wrap items-center gap-1.5">
                             👤
                             <span className="inline-flex flex-col border border-slate-300 rounded-lg p-1.5 bg-white">
-                              {speakers.length === 0 && (
+                              {uniqueSpeakers.length === 0 && (
                                 <span className="text-xs text-slate-400 px-1">
                                   Tidak ada pemateri
                                 </span>
                               )}
-                              {speakers.map((sp) => (
+                              {uniqueSpeakers.map((sp) => (
                                 <label
                                   key={sp.id}
                                   className={`flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer text-xs transition-all ${
@@ -432,7 +492,7 @@ export default function MaterialsPage() {
                           <>
                             👤{" "}
                             <span className="font-medium text-slate-500">
-                              {m.speakerName}
+                              {getSpeakerNames(m).join(", ") || "—"}
                             </span>
                             {" • "}
                             {formatFileSize(m.size)} •{" "}

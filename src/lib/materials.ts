@@ -14,7 +14,8 @@ export interface MaterialFile {
   url: string;
   size: number;
   type: string;
-  speakerName: string; // nama pemateri
+  speakerNames: string[]; // nama pemateri (array, aman walau nama mengandung koma)
+  speakerName?: string; // legacy: string gabungan dipisah ", " (data lama)
   uploadedAt: string;
 }
 
@@ -37,7 +38,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 export async function saveMaterialFile(
   file: File,
   seminarId: string,
-  speakerName: string = "",
+  speakerNames: string[] = [],
 ): Promise<MaterialFile> {
   // Check file type
   if (!ALLOWED_TYPES.includes(file.type) && file.type !== "") {
@@ -65,6 +66,10 @@ export async function saveMaterialFile(
   const buffer = Buffer.from(await file.arrayBuffer());
   await writeFile(absolutePath, buffer);
 
+  const uniqueSpeakerNames = Array.from(
+    new Set(speakerNames.map((n) => n.trim()).filter(Boolean)),
+  );
+
   return {
     id,
     name: fileName,
@@ -72,7 +77,8 @@ export async function saveMaterialFile(
     url: `/${relativeDir}/${fileName}`,
     size: file.size,
     type: file.type || "application/octet-stream",
-    speakerName,
+    speakerNames: uniqueSpeakerNames,
+    speakerName: uniqueSpeakerNames.join(", "),
     uploadedAt: new Date().toISOString(),
   };
 }

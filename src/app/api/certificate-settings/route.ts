@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { certificateNumberSettings } from "@/lib/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { getLastCertificateNumber } from "@/lib/certificate-number";
 
 const MONTHS_ROMAN = [
   "I", "II", "III", "IV", "V", "VI",
@@ -48,33 +49,14 @@ export async function GET() {
     }
 
     // Hitung nomor terakhir dari log (isConfig = false)
-    const [lastResult] = await db
-      .select({ maxVal: sql<number>`COALESCE(MAX(${certificateNumberSettings.certificateNumber}), 0)` })
-      .from(certificateNumberSettings)
-      .where(
-        and(
-          eq(certificateNumberSettings.isConfig, false),
-          eq(certificateNumberSettings.isDeleted, false),
-        ),
-      );
+    const lastCertificateNumber = await getLastCertificateNumber();
 
-    const lastCertificateNumber = lastResult?.maxVal ?? 0;
-
-    // Hitung next number berdasarkan resetOption — reuse lastResult untuk global/per_seminar
+    // Hitung next number berdasarkan resetOption — helper dipakai juga oleh
+    // certificate-number.ts agar query MAX tidak ditulis berulang
     let computedNextNumber: number;
     if (config.resetOption === "per_tahun") {
-      // Query spesifik per tahun untuk kasus reset per_tahun
-      const [res] = await db
-        .select({ maxVal: sql<number>`COALESCE(MAX(${certificateNumberSettings.certificateNumber}), 0)` })
-        .from(certificateNumberSettings)
-        .where(
-          and(
-            eq(certificateNumberSettings.isConfig, false),
-            eq(certificateNumberSettings.isDeleted, false),
-            eq(certificateNumberSettings.year, config.year),
-          ),
-        );
-      computedNextNumber = Math.max(res?.maxVal ?? 0, (config.nextCertificateNumber || 1) - 1) + 1;
+      const perYearMax = await getLastCertificateNumber(config.year);
+      computedNextNumber = Math.max(perYearMax, (config.nextCertificateNumber || 1) - 1) + 1;
     } else {
       // never atau per_seminar — pakai nilai global MAX yang sudah dihitung
       computedNextNumber = Math.max(lastCertificateNumber, (config.nextCertificateNumber || 1) - 1) + 1;
@@ -165,31 +147,12 @@ export async function PUT(request: Request) {
       .limit(1);
 
     // Hitung last dan computed next number
-    const [lastResult] = await db
-      .select({ maxVal: sql<number>`COALESCE(MAX(${certificateNumberSettings.certificateNumber}), 0)` })
-      .from(certificateNumberSettings)
-      .where(
-        and(
-          eq(certificateNumberSettings.isConfig, false),
-          eq(certificateNumberSettings.isDeleted, false),
-        ),
-      );
-
-    const lastCertificateNumber = lastResult?.maxVal ?? 0;
+    const lastCertificateNumber = await getLastCertificateNumber();
 
     let computedNextNumber: number;
     if (updated.resetOption === "per_tahun") {
-      const [res] = await db
-        .select({ maxVal: sql<number>`COALESCE(MAX(${certificateNumberSettings.certificateNumber}), 0)` })
-        .from(certificateNumberSettings)
-        .where(
-          and(
-            eq(certificateNumberSettings.isConfig, false),
-            eq(certificateNumberSettings.isDeleted, false),
-            eq(certificateNumberSettings.year, updated.year),
-          ),
-        );
-      computedNextNumber = Math.max(res?.maxVal ?? 0, (updated.nextCertificateNumber || 1) - 1) + 1;
+      const perYearMax = await getLastCertificateNumber(updated.year);
+      computedNextNumber = Math.max(perYearMax, (updated.nextCertificateNumber || 1) - 1) + 1;
     } else {
       computedNextNumber = Math.max(lastCertificateNumber, (updated.nextCertificateNumber || 1) - 1) + 1;
     }

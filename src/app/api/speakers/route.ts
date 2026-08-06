@@ -39,19 +39,6 @@ export async function GET(request: Request) {
 
     console.log("[SPEAKERS_GET] Memulai query...");
 
-    // Coba query dengan raw SQL dulu untuk debug
-    try {
-      const rawResult = await db.execute(
-        `SELECT * FROM speakers WHERE seminar_id = '${seminarId}' AND is_deleted = false ORDER BY display_order`,
-      );
-      console.log(
-        "[SPEAKERS_GET] Raw query result:",
-        JSON.stringify(rawResult),
-      );
-    } catch (rawErr) {
-      console.error("[SPEAKERS_GET] Raw query juga error:", rawErr);
-    }
-
     const data = await db
       .select()
       .from(speakers)
@@ -67,11 +54,7 @@ export async function GET(request: Request) {
     console.error("[SPEAKERS_GET] Error message:", error?.message);
     console.error("[SPEAKERS_GET] Error stack:", error?.stack);
     return NextResponse.json(
-      {
-        error: "Gagal mengambil data pemateri",
-        detail: error?.message || String(error),
-        stack: error?.stack,
-      },
+      { error: "Gagal mengambil data pemateri" },
       { status: 500 },
     );
   }
@@ -145,10 +128,7 @@ export async function POST(request: Request) {
     console.error("[SPEAKERS_POST] Error:", error);
     console.error("[SPEAKERS_POST] Error message:", error?.message);
     return NextResponse.json(
-      {
-        error: "Gagal menambahkan pemateri",
-        detail: error?.message || String(error),
-      },
+      { error: "Gagal menambahkan pemateri" },
       { status: 500 },
     );
   }

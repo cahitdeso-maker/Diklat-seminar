@@ -227,6 +227,25 @@ export async function PATCH(request: Request) {
 
     const updateData: Record<string, unknown> = {};
 
+    // Resolusi seminarId sekali saja — dipakai bersama oleh blok mark-present
+    // dan blok edit nomor sertifikat agar getRegistrationSeminarId tidak
+    // dipanggil dua kali dalam satu request. Tetap ditoleransi (warn) bila
+    // pendaftaran tidak ditemukan, seperti perilaku lama.
+    const needsSeminarId =
+      body.isPresent === true || body.certificateNumber !== undefined;
+    let seminarIdToUse: string | null = null;
+    if (needsSeminarId) {
+      if (body.seminarId) {
+        seminarIdToUse = body.seminarId;
+      } else {
+        try {
+          seminarIdToUse = await getRegistrationSeminarId(id);
+        } catch (certErr) {
+          console.warn("Seminar lookup skipped:", certErr);
+        }
+      }
+    }
+
     if (body.isPresent !== undefined) {
       updateData.isPresent = body.isPresent;
       if (body.isPresent) {
@@ -235,7 +254,7 @@ export async function PATCH(request: Request) {
         
         // Auto-generate certificate number saat admin mark present
         try {
-          await generateCertificateNumber(id, body.seminarId || (await getRegistrationSeminarId(id)));
+          await generateCertificateNumber(id, seminarIdToUse!);
         } catch (certErr) {
           console.warn("Certificate number generation skipped:", certErr);
         }
@@ -261,10 +280,8 @@ export async function PATCH(request: Request) {
         );
       }
 
-      const seminarIdToUse = body.seminarId || (await getRegistrationSeminarId(id));
-
       try {
-        const result = await updateCertificateNumber(id, seminarIdToUse, newNumber);
+        const result = await updateCertificateNumber(id, seminarIdToUse!, newNumber);
         updateData.certificateNumber = result.number;
         updateData.certificateCode = result.code;
         updateData.certificateGeneratedAt = new Date();

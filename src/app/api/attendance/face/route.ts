@@ -29,15 +29,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Tidak ada peserta yang belum hadir" }, { status: 404 });
     }
 
-    // In a real implementation, you would use a face recognition service
-    // For now, we'll simulate by finding a participant who hasn't checked in yet
-    
-    // For demo purposes, we'll find the first participant who hasn't checked in
-    const notPresent = regs.find((r) => !r.isPresent);
-    
-    if (!notPresent) {
-      return NextResponse.json({ error: "Semua peserta sudah hadir" }, { status: 400 });
-    }
+    // In a real implementation, you would use a face recognition service.
+    // Untuk demo, ambil peserta pertama yang belum hadir — regs sudah difilter
+    // isPresent = false di query di atas, jadi regs[0] selalu aman di sini.
+    const notPresent = regs[0];
 
     // Generate certificate number (auto-generate saat presensi)
     let certResult = null;
