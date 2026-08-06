@@ -75,6 +75,12 @@ export default function AdminSeminars() {
   const [presensiStatus, setPresensiStatus] = useState<Record<string, boolean>>({});
   const [presensiLoading, setPresensiLoading] = useState<Record<string, boolean>>({});
   const [presensiMsg, setPresensiMsg] = useState<Record<string, string>>({});
+  // Konfirmasi "Apakah Nomor Sertifikat sudah sesuai" sebelum membuka presensi
+  const [confirmPresensi, setConfirmPresensi] = useState<{
+    seminarId: string;
+    seminarTitle: string;
+  } | null>(null);
+  const [presensiConfirmLoading, setPresensiConfirmLoading] = useState(false);
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -103,30 +109,55 @@ export default function AdminSeminars() {
     }
   };
 
-  const togglePresensi = async (seminarId: string) => {
+  const updatePresensi = async (seminarId: string, open: boolean) => {
     setPresensiLoading(prev => ({ ...prev, [seminarId]: true }));
     setPresensiMsg(prev => ({ ...prev, [seminarId]: "" }));
     try {
-      const next = !presensiStatus[seminarId];
       const res = await fetch(`/api/seminars/${seminarId}/presensi-status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ open: next }),
+        body: JSON.stringify({ open }),
       });
       const data = await res.json();
       if (res.ok) {
-        setPresensiStatus(prev => ({ ...prev, [seminarId]: next }));
-        setPresensiMsg(prev => ({ ...prev, [seminarId]: data.message || (next ? "Presensi dibuka" : "Presensi ditutup") }));
+        setPresensiStatus(prev => ({ ...prev, [seminarId]: open }));
+        setPresensiMsg(prev => ({
+          ...prev,
+          [seminarId]:
+            data.message || (open ? "Presensi dibuka" : "Presensi ditutup"),
+        }));
       } else {
-        setPresensiMsg(prev => ({ ...prev, [seminarId]: data.error || "Gagal mengubah status presensi" }));
+        setPresensiMsg(prev => ({
+          ...prev,
+          [seminarId]: data.error || "Gagal mengubah status presensi",
+        }));
       }
-    } catch (e) {
+    } catch {
       setPresensiMsg(prev => ({ ...prev, [seminarId]: "Gagal mengubah status presensi" }));
     } finally {
       setPresensiLoading(prev => ({ ...prev, [seminarId]: false }));
     }
   };
+
+  // Klik toggle presensi: saat akan MEMBUKA tampilkan konfirmasi dulu,
+  // presensi baru aktif setelah tombol OK diklik. Menutup langsung tanpa konfirmasi.
+  const togglePresensi = (sem: Seminar) => {
+    const willOpen = !presensiStatus[sem.id];
+    if (willOpen) {
+      setConfirmPresensi({ seminarId: sem.id, seminarTitle: sem.title });
+    } else {
+      updatePresensi(sem.id, false);
+    }
+  };
+
+  const executeOpenPresensi = useCallback(async () => {
+    if (!confirmPresensi) return;
+    setPresensiConfirmLoading(true);
+    await updatePresensi(confirmPresensi.seminarId, true);
+    setPresensiConfirmLoading(false);
+    setConfirmPresensi(null);
+  }, [confirmPresensi]);
 
   useEffect(() => {
     loadSeminars();
@@ -1364,7 +1395,7 @@ export default function AdminSeminars() {
                               </span>
                             )}
                             <button
-                              onClick={() => togglePresensi(sem.id)}
+                              onClick={() => togglePresensi(sem)}
                               disabled={presensiLoading[sem.id]}
                               className={`relative inline-flex h-6 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                                 presensiStatus[sem.id]
@@ -1431,6 +1462,21 @@ export default function AdminSeminars() {
         cancelLabel="Batal"
         confirmVariant={confirmModal?.type === "complete" ? "success" : "danger"}
         loading={confirmLoading}
+      />
+
+      {/* Konfirmasi sebelum membuka akses presensi */}
+      <ConfirmModal
+        open={confirmPresensi !== null}
+        onClose={() => {
+          if (!presensiConfirmLoading) setConfirmPresensi(null);
+        }}
+        onConfirm={executeOpenPresensi}
+        title="Buka Akses Presensi"
+        message="Apakah Nomor Sertifikat sudah sesuai"
+        confirmLabel="OK"
+        cancelLabel="Batal"
+        confirmVariant="success"
+        loading={presensiConfirmLoading}
       />
     </div>
   );

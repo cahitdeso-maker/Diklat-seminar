@@ -1,140 +1,161 @@
-import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { registrations, seminars } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
-import { generateCertificatePdf } from "@/lib/certificate-pdf";
-import { ZipArchive } from "archiver";
+import { eq, and, isNotNull } from "drizzle-orm";
+import {
+  generateCertificatePdfsBulk,
+  type BulkCertificateResult,
+} from "@/lib/certificate-pdf";
+import JSZip from "jszip";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { Readable } from "stream";
 
-/**
- * GET /api/certificates/download-all?seminarId=xxx
- *
- * Generates all certificates for a seminar as individual PDFs and bundles them into a ZIP file.
- * Menggunakan generateCertificatePdf() yang SAMA dengan cetak perorangan,
- * sehingga hasil download IDENTIK dengan cetak.
- * Hanya includes peserta yang sudah present (isPresent = true).
- */
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const seminarId = searchParams.get("seminarId");
+
+  if (!seminarId) {
+    return Response.json({ error: "seminarId harus diisi" }, { status: 400 });
+  }
+
+  const [seminar] = await db
+    .select()
+    .from(seminars)
+    .where(eq(seminars.id, seminarId))
+    .limit(1);
+
+  if (!seminar) {
+    return Response.json({ error: "Seminar tidak ditemukan" }, { status: 404 });
+  }
+
+  const participantList = await db
+    .select({
+      id: registrations.id,
+      fullName: registrations.fullName,
+      certificateNumber: registrations.certificateNumber,
+      certificateCode: registrations.certificateCode,
+    })
+    .from(registrations)
+    .where(
+      and(
+        eq(registrations.seminarId, seminarId),
+        isNotNull(registrations.certificateNumber),
+        eq(registrations.isDeleted, false),
+      ),
+    )
+    .orderBy(registrations.certificateNumber);
+
+  if (participantList.length === 0) {
+    return Response.json(
+      { error: "Tidak ada peserta yang sudah memiliki nomor sertifikat" },
+      { status: 404 },
+    );
+  }
+
+  // Generate semua PDF dengan SATU browser secara paralel — jauh lebih cepat
+  // daripada generateCertificatePdf() per-peserta yang launch/close browser
+  // untuk SETIAP PDF (biang keladi lambatnya bulk download ratusan peserta).
+  let results: BulkCertificateResult[];
   try {
-    const { searchParams } = new URL(request.url);
-    const seminarId = searchParams.get("seminarId");
-
-    if (!seminarId) {
-      return NextResponse.json(
-        { error: "seminarId harus diisi" },
-        { status: 400 },
-      );
-    }
-
-    // Get seminar info
-    const [seminar] = await db
-      .select()
-      .from(seminars)
-      .where(eq(seminars.id, seminarId))
-      .limit(1);
-
-    if (!seminar) {
-      return NextResponse.json(
-        { error: "Seminar tidak ditemukan" },
-        { status: 404 },
-      );
-    }
-
-    // Get all present participants with certificate data
-    const participantList = await db
-      .select({
-        id: registrations.id,
-        fullName: registrations.fullName,
-        certificateNumber: registrations.certificateNumber,
-      })
-      .from(registrations)
-      .where(
-        and(
-          eq(registrations.seminarId, seminarId),
-          eq(registrations.isPresent, true),
-          eq(registrations.isDeleted, false),
-        ),
-      )
-      .orderBy(registrations.certificateNumber);
-
-    if (participantList.length === 0) {
-      return NextResponse.json(
-        { error: "Tidak ada peserta yang sudah hadir untuk seminar ini" },
-        { status: 404 },
-      );
-    }
-
-    // Setup ZIP archive
-    const archive = new ZipArchive({
-      zlib: { level: 6 },
-    });
-
-    const chunks: Buffer[] = [];
-    archive.on("data", (chunk: Buffer) => chunks.push(chunk));
-
-    let successCount = 0;
-    let failCount = 0;
-
-    // Gunakan generateCertificatePdf() yang SAMA dengan cetak perorangan
-    // untuk memastikan hasil IDENTIK
-    for (const participant of participantList) {
-      try {
-        const pdfBuffer = await generateCertificatePdf(participant.id, seminarId);
-
-        // Clean filename
-        const safeName = participant.fullName
-          .replace(/[^a-zA-Z0-9\s]/g, "")
-          .replace(/\s+/g, "_")
-          .substring(0, 80);
-
-        const certNum = participant.certificateNumber
-          ? `${String(participant.certificateNumber).padStart(2, "0")}_`
-          : "";
-
-        archive.append(Buffer.from(pdfBuffer), {
-          name: `sertifikat_${certNum}${safeName}.pdf`,
-        });
-        successCount++;
-      } catch (error) {
-        console.error(
-          `Failed to generate certificate for ${participant.fullName}:`,
-          error,
-        );
-        failCount++;
-      }
-    }
-
-    // Finalize the archive
-    archive.finalize();
-
-    // Wait for the archive to finish
-    await new Promise<void>((resolve, reject) => {
-      archive.on("finish", resolve);
-      archive.on("error", reject);
-    });
-
-    const zipBuffer = Buffer.concat(chunks);
-
-    // Clean seminar title for filename
-    const safeTitle = seminar.title
-      .replace(/[^a-zA-Z0-9\s]/g, "")
-      .replace(/\s+/g, "_")
-      .substring(0, 50);
-
-    return new Response(zipBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="sertifikat_${safeTitle}.zip"`,
-        "X-Total-Count": String(participantList.length),
-        "X-Success-Count": String(successCount),
-        "X-Fail-Count": String(failCount),
+    results = await generateCertificatePdfsBulk(
+      seminarId,
+      participantList.map((p) => ({
+        registrationId: p.id,
+        fullName: p.fullName,
+        certificateNumber: p.certificateNumber,
+        certificateCode: p.certificateCode,
+      })),
+    );
+  } catch (err) {
+    console.error("Bulk certificate generation failed:", err);
+    return Response.json(
+      {
+        error:
+          "Gagal memproses sertifikat. Coba lagi, atau download dalam jumlah lebih kecil.",
       },
-    });
-  } catch (error) {
-    console.error("Download all certificates error:", error);
-    return NextResponse.json(
-      { error: "Gagal mendownload sertifikat" },
       { status: 500 },
     );
   }
+
+  const zip = new JSZip();
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const r of results) {
+    if (r.buffer) {
+      zip.file(r.filename, r.buffer);
+      successCount++;
+    } else {
+      failCount++;
+    }
+  }
+
+  const safeTitle = seminar.title
+    .replace(/[^a-zA-Z0-9\s]/g, "")
+    .replace(/\s+/g, "_")
+    .substring(0, 50);
+
+  const zipFilename = `sertifikat_${safeTitle}.zip`;
+
+  // Tulis ZIP ke file sementara, lalu stream ke client.
+  // - compression "STORE": PDF sudah terkompresi, DEFLATE hanya buang CPU.
+  // - Streaming ke disk: hindari menampung seluruh ZIP di RAM (penting untuk
+  //   ratusan PDF — PM2 punya batas max_memory_restart).
+  const tmpPath = path.join(
+    os.tmpdir(),
+    `sertifikat-${Date.now()}-${Math.random().toString(36).slice(2)}.zip`,
+  );
+
+  await new Promise<void>((resolve, reject) => {
+    const ws = fs.createWriteStream(tmpPath);
+    zip
+      .generateNodeStream({
+        type: "nodebuffer",
+        compression: "STORE",
+        streamFiles: true,
+      })
+      .pipe(ws)
+      .on("finish", () => resolve())
+      .on("error", reject);
+  });
+
+  const stat = fs.statSync(tmpPath);
+  const fileStream = fs.createReadStream(tmpPath);
+
+  // Hapus file sementara SETELAH stream selesai dibaca client (event "close"
+  // terpanggil baik saat selesai normal maupun saat client cancel). Ini lebih
+  // aman daripada timer tetap — ZIP ratusan PDF bisa butuh beberapa menit
+  // didownload di koneksi lambat.
+  let cleanedUp = false;
+  const cleanupFile = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    try {
+      fs.rmSync(tmpPath, { force: true });
+    } catch {}
+  };
+  fileStream.on("end", cleanupFile);
+  fileStream.on("error", cleanupFile);
+  fileStream.on("close", cleanupFile);
+
+  // Pengaman tambahan: file tetap dihapus walau event close tidak pernah
+  // terpanggil (mis. proses restart).
+  const fallbackCleanup = setTimeout(cleanupFile, 30 * 60 * 1000);
+  fallbackCleanup.unref?.();
+
+  const body = Readable.toWeb(fileStream) as ReadableStream;
+
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${zipFilename}"`,
+      "Content-Length": String(stat.size),
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "X-Total-Count": String(participantList.length),
+      "X-Success-Count": String(successCount),
+      "X-Fail-Count": String(failCount),
+    },
+  });
 }

@@ -58,6 +58,61 @@ export default function CertificatesPage() {
     }
   };
 
+  const downloadAllCertificates = async () => {
+    const withCert = participants.filter((p) => p.certificateNumber);
+    if (withCert.length === 0) {
+      setMessage(
+        "Tidak ada peserta yang sudah memiliki nomor sertifikat.",
+      );
+      return;
+    }
+
+    setDownloadingAll(true);
+    setMessage("");
+    try {
+      const res = await fetch(
+        `/api/certificates/download-all?seminarId=${selectedSeminarId}`,
+      );
+      if (!res.ok) {
+        const err = await res.json();
+        setMessage(`❌ ${err.error || "Gagal mendownload sertifikat"}`);
+        return;
+      }
+      // Download ZIP file
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // Try to get filename from Content-Disposition header, fallback to seminar name
+      const disposition = res.headers.get("Content-Disposition");
+      let filename = `sertifikat_${selectedSeminarId.substring(0, 8)}.zip`;
+      if (disposition) {
+        const match = disposition.match(/filename="?([^";]+)"?/);
+        if (match) filename = match[1];
+      }
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      const successCount = res.headers.get("X-Success-Count");
+      const failCount = res.headers.get("X-Fail-Count");
+      if (successCount) {
+        const msg = `✅ ${successCount} sertifikat berhasil didownload`;
+        setMessage(
+          failCount && parseInt(failCount) > 0
+            ? `${msg}, ${failCount} gagal`
+            : msg,
+        );
+      }
+    } catch {
+      setMessage("❌ Gagal terhubung ke server");
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
+
   const sendAllCertificates = async () => {
     const presentParticipants = participants.filter(
       (p) => p.isPresent && p.phoneNumber && !p.certificateSent,
@@ -96,6 +151,8 @@ export default function CertificatesPage() {
     setMessage(`${sent} sertifikat terkirim, ${failed} gagal.`);
     loadParticipants(selectedSeminarId);
   };
+
+  const withCertCount = participants.filter((p) => p.certificateNumber).length;
 
   // Filter participants by search query
   const filteredParticipants = participants.filter((p) => {
@@ -197,52 +254,7 @@ export default function CertificatesPage() {
               </button>
 
               <button
-                onClick={async () => {
-                  setDownloadingAll(true);
-                  setMessage("");
-                  try {
-                    const res = await fetch(
-                      `/api/certificates/download-all?seminarId=${selectedSeminarId}`,
-                    );
-                    if (!res.ok) {
-                      const err = await res.json();
-                      setMessage(`❌ ${err.error || "Gagal mendownload sertifikat"}`);
-                      return;
-                    }
-                    // Download ZIP file
-                    const blob = await res.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    // Try to get filename from Content-Disposition header, fallback to seminar name
-                    const disposition = res.headers.get("Content-Disposition");
-                    let filename = `sertifikat_${selectedSeminarId.substring(0, 8)}.zip`;
-                    if (disposition) {
-                      const match = disposition.match(/filename="?([^";]+)"?/);
-                      if (match) filename = match[1];
-                    }
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
-
-                    const successCount = res.headers.get("X-Success-Count");
-                    const failCount = res.headers.get("X-Fail-Count");
-                    if (successCount) {
-                      const msg = `✅ ${successCount} sertifikat berhasil didownload`;
-                      setMessage(
-                        failCount && parseInt(failCount) > 0
-                          ? `${msg}, ${failCount} gagal`
-                          : msg,
-                      );
-                    }
-                  } catch {
-                    setMessage("❌ Gagal terhubung ke server");
-                  } finally {
-                    setDownloadingAll(false);
-                  }
-                }}
+                onClick={downloadAllCertificates}
                 disabled={downloadingAll}
                 className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-semibold rounded-xl hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg disabled:opacity-50 text-sm"
               >
@@ -252,10 +264,10 @@ export default function CertificatesPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    Mendownload...
+                    Menyiapkan {withCertCount} sertifikat...
                   </span>
                 ) : (
-                  <>⬇️ Download Semua Sertifikat ({participants.filter((p) => p.isPresent).length})</>
+                  <>⬇️ Download Semua Sertifikat ({withCertCount})</>
                 )}
               </button>
             </div>

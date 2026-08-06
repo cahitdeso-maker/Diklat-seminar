@@ -9,6 +9,7 @@ export default function ParticipantsPage() {
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Edit state
   const [editModal, setEditModal] = useState<{
@@ -57,7 +58,7 @@ export default function ParticipantsPage() {
       });
   }, []);
 
-  const loadParticipants = async (seminarId: string) => {
+  async function loadParticipants(seminarId: string) {
     setLoading(true);
     try {
       const res = await fetch(`/api/registrations?seminarId=${seminarId}`);
@@ -66,7 +67,7 @@ export default function ParticipantsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const openEditModal = (participant: any) => {
     setEditModal({ participant });
@@ -161,6 +162,57 @@ export default function ParticipantsPage() {
     );
   });
 
+  const presentCount = participants.filter((p: any) => p.isPresent).length;
+
+  const downloadFile = async (
+    url: string,
+    fallbackName: string,
+    successMessage: string,
+  ) => {
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.error || "Gagal mendownload file");
+    }
+    const blob = await res.blob();
+    const urlObj = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = urlObj;
+    const disposition = res.headers.get("Content-Disposition");
+    let filename = fallbackName;
+    if (disposition) {
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      if (match) filename = match[1];
+    }
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(urlObj);
+    showToast("success", successMessage);
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!selectedSeminarId) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadFile(
+        `/api/participants/export?seminarId=${selectedSeminarId}`,
+        `daftar_hadir_${selectedSeminarId.substring(0, 8)}.pdf`,
+        "PDF daftar hadir berhasil didownload",
+      );
+    } catch (e: unknown) {
+      showToast(
+        "error",
+        e instanceof Error
+          ? e.message
+          : "Terjadi kesalahan, silakan coba lagi",
+      );
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -202,7 +254,7 @@ export default function ParticipantsPage() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 overflow-hidden">
-          <div className="p-4 border-b border-slate-200">
+          <div className="p-4 border-b border-slate-200 flex flex-wrap items-center gap-3">
             <input
               type="text"
               placeholder="Cari peserta (nama, email, institusi, profesi, no. sertifikat)..."
@@ -210,6 +262,32 @@ export default function ParticipantsPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full md:w-96 px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
             />
+            {presentCount > 0 && (
+              <>
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={downloadingPdf}
+                  className="ml-auto inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white text-sm font-semibold hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+                >
+                  {downloadingPdf ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Menyiapkan PDF...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      </svg>
+                      Download PDF Peserta Hadir ({presentCount})
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
