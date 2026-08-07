@@ -13,7 +13,7 @@ const processedSignatureCache = new Map<string, string>();
 // Clear cache on module load agar gambar diproses ulang dengan parameter baru
 processedSignatureCache.clear();
 
-// ─── Google Fonts helper (Noto Sans untuk karakter ▾▴) ──────────────────
+// ─── Google Fonts helper (Noto Sans untuk karakter U+25BE/U+25B4) ──────────────────
 // Di-fetch SEKALI dan di-cache di module level supaya tidak fetch ulang per peserta.
 // Puppeteer via setContent() tidak punya akses server, jadi font harus di-embed
 // sebagai base64 di dalam @font-face.
@@ -415,7 +415,7 @@ async function getCertificateSharedData(
     signatureDateStr = endDateStr;
   }
 
-  // Fetch embedded Noto Sans font untuk karakter Unicode ▾▴ (hanya sekali, di-cache)
+  // Fetch embedded Noto Sans font untuk karakter Unicode U+25BE/U+25B4 (hanya sekali, di-cache)
   const fontBase64 = await getCachedNotoFont();
 
   // Konversi signatureImage (URL relatif /uploads/...) ke base64 data URI
@@ -705,7 +705,7 @@ export function generateCertificateHtml(
 @font-face {
   font-family: 'NotoSymbols';
   src: url('data:font/woff2;base64,${fontBase64}') format('woff2');
-  unicode-range: U+25BE, U+25B4; /* hanya karakter ▾▴ */
+  unicode-range: U+25BE, U+25B4; /* hanya karakter U+25BE dan U+25B4 */
 }
 `
     : "";
@@ -774,8 +774,8 @@ export function generateCertificateHtml(
           margin: 0 auto; }
     .cert-underline::before,
     .cert-underline::after {
-          content: "▾▴▾▴▾▴▾▴";
-          font-family: 'NotoSymbols', Arial, sans-serif; /* supaya karakter ▾▴ render di PDF */
+          content: "\\25BE\\25B4\\25BE\\25B4\\25BE\\25B4\\25BE\\25B4";
+          font-family: 'NotoSymbols', Arial, sans-serif; /* supaya karakter U+25BE/U+25B4 render di PDF */
           position: absolute;
           top: 50%;
           transform: translateY(-50%);
