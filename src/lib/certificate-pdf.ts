@@ -632,6 +632,10 @@ export function generateCertificateHtml(
   const sigImage = signature?.signatureImage;
   const formattedDate = date.replace(/^[^,]+,\s*/, "");
 
+  // Dekorasi di bawah nama (U+25BE/U+25B4) — pakai unicode escape JS agar file
+  // sumber bebas karakter non-ASCII (tidak bisa rusak oleh salah encoding).
+  const dekorasiNama = '\u25BE\u25B4\u25BE\u25B4\u25BE\u25B4\u25BE\u25B4';
+
   const certPage = `<div class="page cert-page">
     <div class="header-wrap">
       <img class="header-img" src="/img/atas.jpg" alt="Header Kop Surat" />
@@ -774,7 +778,7 @@ export function generateCertificateHtml(
           margin: 0 auto; }
     .cert-underline::before,
     .cert-underline::after {
-          content: "\\25BE\\25B4\\25BE\\25B4\\25BE\\25B4\\25BE\\25B4";
+          content: "${dekorasiNama}";
           font-family: 'NotoSymbols', Arial, sans-serif; /* supaya karakter U+25BE/U+25B4 render di PDF */
           position: absolute;
           top: 50%;
