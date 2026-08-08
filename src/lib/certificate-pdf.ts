@@ -199,6 +199,33 @@ function getImageDataUri(imagePath: string): string {
   return "";
 }
 
+async function getNormalizedSignatureDataUri(
+  imagePath: string
+): Promise<string> {
+  const cacheKey = "normalized_" + imagePath;
+  if (imageCache.has(cacheKey)) {
+    return imageCache.get(cacheKey)!;
+  }
+
+  try {
+    const publicDir = path.join(process.cwd(), "public");
+    const fullPath = path.join(publicDir, imagePath.replace(/^\//, ""));
+    if (!fs.existsSync(fullPath)) return "";
+
+    const resized = await sharp(fullPath)
+      .resize({ width: 800, height: 800, fit: "inside", withoutEnlargement: true })
+      .png()
+      .toBuffer();
+
+    const dataUri = `data:image/png;base64,${resized.toString("base64")}`;
+    imageCache.set(cacheKey, dataUri);
+    return dataUri;
+  } catch (err) {
+    console.warn("Failed to normalize signature:", err);
+    return getImageDataUri(imagePath);
+  }
+}
+
 /**
  * Ganti semua src gambar relatif dengan inline base64 data URI.
  * Ini penting karena Puppeteer via setContent() tidak memiliki server
@@ -218,8 +245,6 @@ export function inlineCertificateImages(html: string): string {
     },
   );
 }
-
-// â”€â”€â”€ Type Definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface MaterialItem {
   name?: string;
@@ -399,8 +424,7 @@ async function getCertificateSharedData(
   // Fetch embedded Noto Sans font untuk karakter Unicode â–¾â–´ (hanya sekali, di-cache)
   const fontBase64 = await getCachedNotoFont();
   const signatureImageDataUri = activeSignature?.signatureImage
-    ? (await getProcessedSignatureDataUri(activeSignature.signatureImage)) ||
-      getImageDataUri(activeSignature.signatureImage) ||
+    ? await getNormalizedSignatureDataUri(activeSignature.signatureImage) ||
       activeSignature.signatureImage
     : undefined;
 
@@ -632,9 +656,9 @@ export function generateCertificateHtml(
     </div>
         <div class="cert-signature">
           <div class="signature-date">Gombong, ${signatureDate || date}</div>
-         <div class="signature-position-wrapper">
-          ${sigPosition ? `<div class="signature-position">${sigPosition}</div>` : ""}</div>
-          <div class="signature-space ${sigImage ? "has-signature" : ""}"></div>
+          <div class="signature-position-wrapper">
+            ${sigPosition ? `<div class="signature-position">${sigPosition}</div>` : ""}
+          </div>
           ${sigImage ? `<img src="${sigImage}" alt="Tanda Tangan" class="signature-img" />` : ""}
           ${sigName ? `<div class="signature-name">${sigName}</div>` : ""}
           ${sigNip ? `<div class="signature-nip">NIP. ${sigNip}</div>` : ""}
@@ -719,8 +743,8 @@ export function generateCertificateHtml(
           color: #111;
           margin-bottom: 8px;
           position: relative;
-          top: -35px; }
-    .cert-label { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 10px; margin-top: -35px; }
+          top: -15px; }
+    .cert-label { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 10px; margin-top: -25px; }
     .cert-name-wrap {
         display: inline-block;
         position: relative;
@@ -797,58 +821,65 @@ export function generateCertificateHtml(
     .cert-footer {
             display: inline;
             font-size: 20px;
-            line-height: 1.4; }
-   .cert-signature { 
-              width: 100%; 
-              position: relative; 
-              display: flex; 
-              flex-direction: column; 
+            line-height: 1.4;}
+    .cert-signature {
+              width: 100%;
+              display: flex;
+              flex-direction: column;
               align-items: flex-end;
-              padding-right: 100px;
-              text-align: center; 
-              font-size: 15px; 
-              color: #000; 
+              padding-right: 80px;
+              font-size: 15px;
+              color: #000;
               line-height: 1.5; }
-    .signature-date { 
+    .signature-date {
               width: 300px;
               text-align: left;
-              margin-top: 10px; 
-              margin-bottom: 5px;
-              z-index: 4; }
+              margin-top: 15px;
+              position: relative; 
+              z-index: 5;}
     .signature-position-wrapper {
               width: 300px;
               display: flex;
-              margin-top: 8px;
-              margin-bottom: -40px;
+              margin-top: -30px;
+              margin-bottom: -120px;
               text-align: left; 
               white-space: nowrap;
+              position: relative;
               z-index: 5;}          
     .signature-position { 
               width: 300px; 
-              margin-top: -10px; 
-              text-align: left; }
-    .signature-name { 
-              width: 300px; 
-              font-weight: bold; 
-              text-decoration: underline;
-              margin-top: 130px; 
+              margin-top: 25px; 
               text-align: left;
-              white-space: nowrap; }
-    .signature-nip { 
+              position: relative; 
+              z-index: 5;}
+
+    .signature-img {
+              width: 280px;
+              height: 450px;
+              object-fit: contain;
+              object-position: left center;
+              display: block;
+              mix-blend-mode: multiply;
+              margin-top: -80px;
+              margin-bottom: -200px;
+              position: relative; 
+              z-index: 1;}
+    .signature-name {
               width: 300px;
               font-weight: bold;
-              text-align: left; 
-              font-size: 13px; }
-    .signature-img { 
-              position: absolute; 
-              right: 30px;
-              top: 10px; 
-              width: 500px; 
-              max-height: 150px; 
-              object-fit: contain;
-              background: transparent;
-              z-index: 3; 
-              display: block;}
+              text-decoration: underline;
+              text-align: left;
+              white-space: nowrap;
+              margin-top: 50px;
+              position: relative; 
+              z-index: 5;}
+    .signature-nip {
+              width: 300px;
+              font-weight: bold;
+              text-align: left;
+              font-size: 13px;
+              position: relative;
+              z-index: 5; }
     .footer-wrap { width: 100%; flex-shrink: 0; line-height: 0; }
     .footer-img { width: 100%; display: block; }
 .materials-body {

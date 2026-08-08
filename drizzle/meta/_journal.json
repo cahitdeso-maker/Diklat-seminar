@@ -1,0 +1,83 @@
+{
+  "version": "3",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "0",
+      "when": 0,
+      "tag": "0004_add_presensi_open_to_seminars",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "1",
+      "when": 0,
+      "tag": "0005_add_letter_components",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "2",
+      "when": 0,
+      "tag": "0006_add_last_certificate_number",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "3",
+      "when": 0,
+      "tag": "0007_make_certificate_settings_multi_row",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "4",
+      "when": 0,
+      "tag": "0008_add_id_default_to_certificate_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 0,
+      "tag": "0009_add_face_embeddings",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 0,
+      "tag": "0010_add_use_manual_to_seminars",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 0,
+      "tag": "0011_add_is_completed_to_seminars",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "8",
+      "when": 0,
+      "tag": "0012_add_certificate_number_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "9",
+      "when": 0,
+      "tag": "0013_add_start_end_date_to_seminars",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786165436163,
+      "tag": "0010_sour_kabuki",
+      "breakpoints": true
+    }
+  ]
+}
