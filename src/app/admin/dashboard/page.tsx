@@ -608,7 +608,7 @@ export default function AdminDashboard() {
       <footer className="bg-white/50 backdrop-blur-sm border-t border-slate-200 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <p className="text-center text-sm text-slate-500">
-            &copy; {new Date().getFullYear()} Diklat RS PKU Muhammadiyah Gombong. Sistem Presensi Medis Pintar.
+            &copy; {new Date().getFullYear()} Diklat RS PKU Muhammadiyah Gombong.
           </p>
         </div>
       </footer>
