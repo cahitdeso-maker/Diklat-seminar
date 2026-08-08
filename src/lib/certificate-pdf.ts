@@ -8,12 +8,12 @@ import sharp from "sharp";
 
 // Cache for inlined images to avoid re-reading from disk
 const imageCache = new Map<string, string>();
-// Cache hasil proses tanda tangan (nama file unik per upload → aman di-cache)
+// Cache hasil proses tanda tangan (nama file unik per upload â†’ aman di-cache)
 const processedSignatureCache = new Map<string, string>();
 // Clear cache on module load agar gambar diproses ulang dengan parameter baru
 processedSignatureCache.clear();
 
-// ─── Google Fonts helper (Noto Sans untuk karakter U+25BE/U+25B4) ──────────────────
+// â”€â”€â”€ Google Fonts helper (Noto Sans untuk karakter â–¾â–´) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Di-fetch SEKALI dan di-cache di module level supaya tidak fetch ulang per peserta.
 // Puppeteer via setContent() tidak punya akses server, jadi font harus di-embed
 // sebagai base64 di dalam @font-face.
@@ -82,10 +82,10 @@ async function getProcessedSignatureDataUri(imagePath: string): Promise<string> 
     const fullPath = path.join(publicDir, imagePath.replace(/^\//, ""));
     if (!fs.existsSync(fullPath)) return "";
 
-    // 1. Baca gambar sebagai raw RGB — warna asli DIJAGA (tidak dikonversi hitam-putih),
+    // 1. Baca gambar sebagai raw RGB â€” warna asli DIJAGA (tidak dikonversi hitam-putih),
     //    sehingga warna tinta mengikuti file upload (mis. biru tetap biru).
     // Resolusi kerja dibatasi (max 1200px) karena tanda tangan hanya ditampilkan
-    // ±250px — jauh lebih cepat tanpa mengubah hasil visual.
+    // Â±250px â€” jauh lebih cepat tanpa mengubah hasil visual.
     const { data, info } = await sharp(fullPath)
       .removeAlpha()
       .toColourspace("srgb")
@@ -98,9 +98,9 @@ async function getProcessedSignatureDataUri(imagePath: string): Promise<string> 
     const channels = info.channels; // 3 (RGB) setelah toColourspace
 
     // 2. Hitung kepekatan tinta tiap piksel = jarak Euclidean dari putih.
-    //    - dist < 12 → noise putih, transparan penuh
-    //    - dist < 40 → tepi anti-alias, alpha gradual (×4.0)
-    //    - dist ≥ 40 → tinta jelas, OPAQUE PENUH (biar tebal, tidak tercuci)
+    //    - dist < 12 â†’ noise putih, transparan penuh
+    //    - dist < 40 â†’ tepi anti-alias, alpha gradual (Ã—4.0)
+    //    - dist â‰¥ 40 â†’ tinta jelas, OPAQUE PENUH (biar tebal, tidak tercuci)
     //    Warna RGB tetap mengikuti file upload, dengan kontras ditingkatkan.
     const alphaMap = new Uint8Array(w * h);
     const SQRT3 = Math.sqrt(3);
@@ -116,7 +116,7 @@ async function getProcessedSignatureDataUri(imagePath: string): Promise<string> 
       alphaMap[i] = dist >= 0 && base > 0 ? 255 : base;
     }
 
-    // 3. Pertebal goresan & pertahankan warna: joint max-filter 3×3 (dilasi).
+    // 3. Pertebal goresan & pertahankan warna: joint max-filter 3Ã—3 (dilasi).
     //    Setiap piksel mengadopsi warna piksel tinta terkuat di sekitarnya
     //    dengan kontras ditingkatkan agar warna lebih jelas dan vivid.
     const rgba = Buffer.alloc(w * h * 4);
@@ -219,7 +219,7 @@ export function inlineCertificateImages(html: string): string {
   );
 }
 
-// ─── Type Definitions ───────────────────────────────────────────────────────
+// â”€â”€â”€ Type Definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface MaterialItem {
   name?: string;
@@ -245,7 +245,7 @@ export interface ParticipantData {
  * Pendekatan ini menghasilkan PDF yang IDENTIK dengan tampilan cetak di browser
  * karena menggunakan rendering engine Chrome yang sama.
  *
- * Ini adalah satu-satunya jalur rendering — generateCertificatePdf() memanggil
+ * Ini adalah satu-satunya jalur rendering â€” generateCertificatePdf() memanggil
  * fungsi ini langsung tanpa menyimpan/membaca file di disk.
  */
 export async function renderCertificatePdf(
@@ -284,10 +284,10 @@ export async function renderCertificatePdf(
 }
 
 /**
- * Generate PDF sertifikat (public API — dipakai route cetak per peserta
+ * Generate PDF sertifikat (public API â€” dipakai route cetak per peserta
  * dan bulk download).
  *
- * Selalu render LANGSUNG dari data live via renderCertificatePdf() — TIDAK
+ * Selalu render LANGSUNG dari data live via renderCertificatePdf() â€” TIDAK
  * ada file tersimpan/terbaca di disk.
  */
 export async function generateCertificatePdf(
@@ -296,12 +296,6 @@ export async function generateCertificatePdf(
 ): Promise<Buffer> {
   return renderCertificatePdf(registrationId, seminarId);
 }
-
-// ─── HTML Generation ────────────────────────────────────────────────────────
-
-/**
- * Generate certificate HTML for browser display or Puppeteer PDF generation.
- */
 export async function getCertificateHtml(
   registrationId: string,
   seminarId: string,
@@ -328,10 +322,6 @@ export async function getCertificateHtml(
       certNumber = "";
     }
   }
-
-  // Data statis seminar (judul, tanggal, materi, tanda tangan, font) dimuat
-  // SEKALI — dipakai juga oleh bulk download supaya tidak query DB berulang
-  // untuk setiap peserta.
   const shared = await getCertificateSharedData(seminarId);
 
   // Apply search filter if provided
@@ -356,8 +346,6 @@ export async function getCertificateHtml(
   );
 }
 
-// ─── Shared Seminar Data (dipakai render per-peserta & bulk download) ───────
-
 export interface CertificateSharedData {
   title: string;
   tanggalStr: string;
@@ -366,13 +354,6 @@ export interface CertificateSharedData {
   signature?: SignatureData;
   fontBase64: string;
 }
-
-/**
- * Muat data statis sebuah seminar SEKALI: judul, rentang tanggal, daftar
- * materi, pengaturan tanda tangan, dan font embedded. Hasilnya dipakai
- * untuk SEMUA peserta dalam seminar yang sama sehingga query DB & proses
- * gambar tidak diulang-ulang.
- */
 async function getCertificateSharedData(
   seminarId: string,
 ): Promise<CertificateSharedData> {
@@ -415,13 +396,8 @@ async function getCertificateSharedData(
     signatureDateStr = endDateStr;
   }
 
-  // Fetch embedded Noto Sans font untuk karakter Unicode U+25BE/U+25B4 (hanya sekali, di-cache)
+  // Fetch embedded Noto Sans font untuk karakter Unicode â–¾â–´ (hanya sekali, di-cache)
   const fontBase64 = await getCachedNotoFont();
-
-  // Konversi signatureImage (URL relatif /uploads/...) ke base64 data URI
-  // supaya Puppeteer via setContent() bisa render tanpa akses server.
-  // Background putih dihapus (transparan) namun WARNA tinta dipertahankan sesuai
-  // file upload, sehingga tanda tangan menyatu tanpa kotak putih.
   const signatureImageDataUri = activeSignature?.signatureImage
     ? (await getProcessedSignatureDataUri(activeSignature.signatureImage)) ||
       getImageDataUri(activeSignature.signatureImage) ||
@@ -444,12 +420,6 @@ async function getCertificateSharedData(
     fontBase64,
   };
 }
-
-/**
- * Tunggu semua gambar di halaman selesai decode, lalu beri buffer ekstra.
- * Gambar sudah berupa base64 data URI, jadi decode cepat — buffer besar
- * hanya membuang waktu saat render massal.
- */
 async function waitForCertificateImages(page: Page, extraBufferMs: number): Promise<void> {
   await page.evaluate(() => {
     return new Promise<void>((resolve) => {
@@ -474,9 +444,6 @@ async function waitForCertificateImages(page: Page, extraBufferMs: number): Prom
     await new Promise((resolve) => setTimeout(resolve, extraBufferMs));
   }
 }
-
-// ─── Bulk PDF Generation (Download Semua Sertifikat) ─────────────────────────
-
 export interface BulkCertificateItem {
   registrationId: string;
   fullName: string;
@@ -507,12 +474,6 @@ export function buildPdfFilename(item: BulkCertificateItem): string {
       : "";
   return `sertifikat_${certNum}${safeName}.pdf`;
 }
-
-/**
- * Format nomor sertifikat untuk tampilan di PDF.
- * Tidak memanggil generateCertificateNumber() (yang menulis DB) — peserta
- * yang masuk bulk download sudah pasti punya nomor.
- */
 function formatCertificateCode(item: BulkCertificateItem): string {
   if (item.certificateCode) {
     return normalizeCertificateCode(item.certificateCode);
@@ -522,18 +483,6 @@ function formatCertificateCode(item: BulkCertificateItem): string {
   }
   return "";
 }
-
-/**
- * Generate banyak PDF sertifikat sekaligus — pengganti loop
- * generateCertificatePdf() per-peserta yang lambat karena launch/close
- * browser untuk SETIAP PDF.
- *
- * Optimasi performa:
- * 1. SATU browser dipakai untuk semua peserta.
- * 2. Rendering diparalelkan dengan beberapa halaman (default 4).
- * 3. Data statis seminar dimuat SEKALI (getCertificateSharedData).
- * 4. Buffer tunggu gambar dipangkas (100ms) karena gambar base64 inline.
- */
 export async function generateCertificatePdfsBulk(
   seminarId: string,
   items: BulkCertificateItem[],
@@ -632,10 +581,6 @@ export function generateCertificateHtml(
   const sigImage = signature?.signatureImage;
   const formattedDate = date.replace(/^[^,]+,\s*/, "");
 
-  // Dekorasi di bawah nama (U+25BE/U+25B4) — pakai unicode escape JS agar file
-  // sumber bebas karakter non-ASCII (tidak bisa rusak oleh salah encoding).
-  const dekorasiNama = '\u25BE\u25B4\u25BE\u25B4\u25BE\u25B4\u25BE\u25B4';
-
   const certPage = `<div class="page cert-page">
     <div class="header-wrap">
       <img class="header-img" src="/img/atas.jpg" alt="Header Kop Surat" />
@@ -647,7 +592,29 @@ export function generateCertificateHtml(
         <div style="text-align:center;">
       <div class="cert-name-wrap">
         <div class="cert-name">${name}</div>
-        <div class="cert-underline"></div>
+        <div class="cert-underline-row">
+      <div class="cert-deco-group left">
+        <img class="cert-deco" src="/img/drop_up.png" alt="" />
+        <img class="cert-deco" src="/img/drop_down.png" alt="" />
+        <img class="cert-deco" src="/img/drop_up.png" alt="" />
+        <img class="cert-deco" src="/img/drop_down.png" alt="" />
+        <img class="cert-deco" src="/img/drop_up.png" alt="" />
+        <img class="cert-deco" src="/img/drop_down.png" alt="" />
+        <img class="cert-deco" src="/img/drop_up.png" alt="" />
+        <img class="cert-deco" src="/img/drop_down.png" alt="" />
+      </div>
+      <div class="cert-underline"></div>
+      <div class="cert-deco-group right">
+        <img class="cert-deco" src="/img/drop_down.png" alt="" />
+        <img class="cert-deco" src="/img/drop_up.png" alt="" />
+        <img class="cert-deco" src="/img/drop_down.png" alt="" />
+        <img class="cert-deco" src="/img/drop_up.png" alt="" />
+        <img class="cert-deco" src="/img/drop_down.png" alt="" />
+        <img class="cert-deco" src="/img/drop_up.png" alt="" />
+        <img class="cert-deco" src="/img/drop_down.png" alt="" />
+        <img class="cert-deco" src="/img/drop_up.png" alt="" />
+      </div>
+    </div>
       </div>
       </div>
         <div class="cert-role-label">Sebagai :</div>
@@ -709,7 +676,7 @@ export function generateCertificateHtml(
 @font-face {
   font-family: 'NotoSymbols';
   src: url('data:font/woff2;base64,${fontBase64}') format('woff2');
-  unicode-range: U+25BE, U+25B4; /* hanya karakter U+25BE dan U+25B4 */
+  unicode-range: U+25BE, U+25B4; /* hanya karakter â–¾â–´ */
 }
 `
     : "";
@@ -752,54 +719,64 @@ export function generateCertificateHtml(
           color: #111;
           margin-bottom: 8px;
           position: relative;
-          top: -10px; }
-    .cert-label { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 10px; margin-top: -18px; }
+          top: -35px; }
+    .cert-label { font-size: 18px; font-weight: bold; color: #111; margin-bottom: 10px; margin-top: -35px; }
     .cert-name-wrap {
-          display: inline-flex;
-          flex-direction: column;
-          align-items: stretch;
-          margin: 0 auto 20px;
-          text-align: center; }
-    .cert-name {
-          display: inline-block;
-          align-self: center;
-          width: fit-content;
-          font-size: 34px;
-          font-weight: bold;
-          color: #000;
-          padding: 0 30px 10px;
-          white-space: nowrap;
-          line-height: 1.2; }
-    .cert-underline {
-          position: relative;
-          width: 100%;
-          height: 6px;
-          background: #033b5c;
-          margin: 0 auto; }
-    .cert-underline::before,
-    .cert-underline::after {
-          content: "${dekorasiNama}";
-          font-family: 'NotoSymbols', Arial, sans-serif; /* supaya karakter U+25BE/U+25B4 render di PDF */
-          position: absolute;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #033b5c;
-          font-size: 18px;
-          font-weight: bold;
-          letter-spacing: -6px;
-          line-height: 1;
-          background: #fff;
-          // padding: 0 4px;
-          z-index: 2; }
+        display: inline-block;
+        position: relative;
+        text-align: center;
+        margin: 0 auto;
+        padding: 0 30px;
+    }
 
-    .cert-underline::before {
-          right: 100%;
-          margin-right: 8px; }
-    .cert-underline::after {
-          left: 100%;
-          margin-left: 0px; }
-    .cert-role-label { font-size: 16px; font-weight: bold; color: #111; margin-bottom: 0px; margin-top: -5px; }
-    .cert-role-value { font-size: 26px; font-weight: bold; color: #0056B3; letter-spacing: 2px; margin-bottom: 20px; }
+    .cert-name {
+        display: block;
+        font-size: 34px;
+        font-weight: bold;
+        white-space: nowrap;
+    }
+
+    .cert-underline-row {
+        width: 100%;
+        margin-top: 6px;
+    }
+
+    .cert-underline {
+        width: 100%;
+        height: 5px;
+        background: #033b5c;
+    }
+
+    .cert-deco-group {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    z-index: 2;
+    }
+
+    .cert-deco-group.left {
+        left: -75px;
+        top: 43px;
+        margin-top: -6.5px;
+    }
+
+    .cert-deco-group.right {
+        right: -75px;
+        top: 43px;
+        margin-top: -6.5px;
+    }
+
+    .cert-deco {
+        width: 24px;
+        height: 24px;
+        margin-left: -12px;   /* nilai negatif = overlap sekian px antar deco */
+    }
+
+    .cert-deco:first-child {
+        margin-left: 0;      /* biar deco pertama tidak ikut ketarik ke kiri */
+    }
+    .cert-role-label { font-size: 16px; font-weight: bold; color: #111; margin-bottom: 0px; margin-top: 8px; }
+    .cert-role-value { font-size: 26px; font-weight: bold; color: #0056B3; letter-spacing: 2px; margin-bottom: 10px; }
     .cert-description {
             width: 100%;
             margin: 0 auto;
@@ -862,7 +839,7 @@ export function generateCertificateHtml(
               font-weight: bold;
               text-align: left; 
               font-size: 13px; }
-       .signature-img { 
+    .signature-img { 
               position: absolute; 
               right: 30px;
               top: 10px; 
@@ -939,8 +916,8 @@ export function generateCertificateHtml(
 <body>
 ${allPages}
 <div class="no-print">
-  <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
-  <button class="btn-back" onclick="window.close()">✕ Tutup</button>
+  <button class="btn-print" onclick="window.print()">Cetak / Simpan PDF</button>
+  <button class="btn-back" onclick="window.close()">Tutup</button>
 </div>
 <script>
 (function() {
